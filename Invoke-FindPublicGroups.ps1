@@ -154,7 +154,7 @@ function Invoke-FindPublicGroups {
     }
 	
 	
-
+	
 
     $startTime = Get-Date
     $refreshIntervalMinutes = 7
@@ -163,13 +163,49 @@ function Invoke-FindPublicGroups {
     $totalGroupsScanned = 0
 
     Write-Host "`n[*] Fetching Public Groups..." -ForegroundColor DarkCyan
+	
+	
 
+		$GroupIdToRoleMap = @{}
+		$success = $false
+		do {
+			try {
+				Write-Host "[*] Fetching directory role assignments..." -ForegroundColor DarkCyan
+				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+				$success = $true
+			} catch {
+				$statusCode = $_.Exception.Response.StatusCode.value__
+				if ($statusCode -eq 429) {
+					$retryAfter = $_.Exception.Response.Headers["Retry-After"]
+					if (-not $retryAfter) { $retryAfter = 7 }
+					Write-Host "[!] Rate limit hit during role mapping. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
+					Start-Sleep -Seconds ([int]$retryAfter)
+				} elseif ($statusCode -eq 401) {
+					Write-Host "[!] Token expired while retrieving roles, refreshing token..." -ForegroundColor Yellow
+					if ($authMethod -eq "refresh") {
+						$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+					} elseif ($authMethod -eq "client") {
+						$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
+					}
+					if (-not $GraphAccessToken) { return }
+					$headers["Authorization"] = "Bearer $GraphAccessToken"
+				} else {
+					Write-Host "[-] Unhandled error during role mapping. Exiting." -ForegroundColor Red
+					return
+				}
+			}
+		} while (-not $success)
+
+	
+	
+	
+	
     do {
         $success = $false
         do {
             try {
                 $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
-				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+				#$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
                 $success = $true
             } catch {
                 $statusCode = $_.Exception.Response.StatusCode.value__
@@ -212,7 +248,7 @@ function Invoke-FindPublicGroups {
 			
 			if ($visibility -eq "Public") {
                 if ($GroupIdToRoleMap.ContainsKey($groupId)) {
-                    Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Red
+                    Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Yellow
                     "[Privileged] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : Role = $($GroupIdToRoleMap[$groupId])" | Add-Content -Path "Public_Groups.txt"
                 } else {
                     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
