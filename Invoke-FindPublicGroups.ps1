@@ -69,6 +69,29 @@ function Invoke-FindPublicGroups {
             }
         }
     }
+	
+	function Get-GroupsWithDirectoryRoles {
+    param ($AccessToken)
+
+    $headers = @{ Authorization = "Bearer $AccessToken" }
+    $roles = Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/directoryRoles" -Headers $headers
+
+    $GroupIdsWithRoles = @{}
+
+    foreach ($role in $roles.value) {
+        $roleId = $role.id
+        $members = Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/directoryRoles/$roleId/members" -Headers $headers
+        foreach ($member in $members.value) {
+            if ($member.'@odata.type' -eq "#microsoft.graph.group") {
+                $GroupIdsWithRoles[$member.id] = $role.displayName
+            }
+        }
+    }
+
+    return $GroupIdsWithRoles
+}
+
+	
 
     function Get-Token-WithRefreshToken {
         param ([string]$RefreshToken)
@@ -129,6 +152,9 @@ function Invoke-FindPublicGroups {
         "ConsistencyLevel" = "eventual"
         "Prefer"           = "odata.maxpagesize=999"
     }
+	
+	
+
 
     $startTime = Get-Date
     $refreshIntervalMinutes = 7
@@ -144,6 +170,7 @@ function Invoke-FindPublicGroups {
             try {
                 $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
                 $success = $true
+				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
             } catch {
                 $statusCode = $_.Exception.Response.StatusCode.value__
                 if ($statusCode -eq 429) {
@@ -177,13 +204,22 @@ function Invoke-FindPublicGroups {
             $groupName = $group.displayName
             $visibility = $group.visibility
 
-            if ($visibility -eq "Public") {
-                Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
-                "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
-            } else {
-                
+          #  if ($visibility -eq "Public") {
+           #     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
+            #    "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
+            #} else {			
+            #}
+			
+			if ($visibility -eq "Public") {
+                if ($GroupIdToRoleMap.ContainsKey($groupId)) {
+                    Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Red
+                    "[Privileged] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : Role = $($GroupIdToRoleMap[$groupId])" | Add-Content -Path "Public_Groups.txt"
+                } else {
+                    Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
+                    "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
+                }
             }
-
+			
             $scannedInBatch++
             $totalGroupsScanned++
             $percent = [math]::Round(($scannedInBatch / $batchCount) * 100)
@@ -201,6 +237,12 @@ function Invoke-FindPublicGroups {
             $headers["Authorization"] = "Bearer $GraphAccessToken"
             $startTime = Get-Date
         }
+		
+		
+		
+		
+		
+		
 
         $groupApiUrl = $response.'@odata.nextLink'
 
