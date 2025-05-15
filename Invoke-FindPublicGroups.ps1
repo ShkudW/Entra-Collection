@@ -169,8 +169,8 @@ function Invoke-FindPublicGroups {
         do {
             try {
                 $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
-                $success = $true
 				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+                $success = $true
             } catch {
                 $statusCode = $_.Exception.Response.StatusCode.value__
                 if ($statusCode -eq 429) {
