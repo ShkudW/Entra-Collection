@@ -1,19 +1,13 @@
 function Invoke-TAPChanger {
     param(
         [Parameter(Mandatory)]
-        [string]$ClientId,
-
+        [string]$UseTargetID,
         [Parameter(Mandatory)]
         [string]$AccessToken,
-
         [switch]$Add,
-
         [switch]$Delete,
-
         [int]$LifetimeMinutes = 60,
-
         [bool]$IsUsableOnce = $false,
-
         [datetime]$StartDateTime
     )
 
@@ -78,14 +72,14 @@ function Invoke-TAPChanger {
 
     if ($Add) {
         if ($PSBoundParameters.ContainsKey('StartDateTime')) {
-			New-TemporaryAccessPass -UserId $ClientId -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce -Start $StartDateTime
+			New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce -Start $StartDateTime
 		} else {
-			New-TemporaryAccessPass -UserId $ClientId -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce
+			New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce
 		}
 
     }
 
     if ($Delete) {
-        Remove-TemporaryAccessPass -UserId $ClientId -Token $AccessToken
+        Remove-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken
     }
 }
