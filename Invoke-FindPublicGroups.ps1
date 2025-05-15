@@ -10,12 +10,28 @@ function Invoke-FindPublicGroups {
         [string]$ClientId,
 	
         [Parameter(Mandatory = $false)]
-        [string]$TenantID,
+        [string]$DomainName,
 	
         [Parameter(Mandatory = $false)]
         [string]$SecretId
     )
-
+	
+	function Get-DomainName {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$DomainName
+    )
+    try {
+        $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+        $TenantID = ($response.issuer -split "/")[3]
+        Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+        return $TenantID
+    } catch {
+        Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+        return $null
+    }
+}
+	
     function Example {
         Write-Host "`nHey F*ckers" -ForegroundColor DarkYellow
         Write-Host "Usage:" -ForegroundColor DarkYellow
@@ -91,7 +107,13 @@ function Invoke-FindPublicGroups {
     return $GroupIdsWithRoles
 }
 
-	
+	if (-not $TenantID -and $DomainName) {
+    $TenantID = Get-DomainName -DomainName $DomainName
+    if (-not $TenantID) {
+        Write-Error "[-] Cannot continue without Tenant ID."
+        return
+    }
+}
 
     function Get-Token-WithRefreshToken {
         param ([string]$RefreshToken)
@@ -250,8 +272,7 @@ function Invoke-FindPublicGroups {
                 if ($GroupIdToRoleMap.ContainsKey($groupId)) {
                     Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Yellow
                     "[Privileged] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : Role = $($GroupIdToRoleMap[$groupId])" | Add-Content -Path "Public_Groups.txt"
-			 Read-Host "[!] Press ENTER to continue scanning..."                
-		} else {
+                } else {
                     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
                     "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
                 }
