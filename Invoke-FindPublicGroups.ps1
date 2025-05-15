@@ -250,7 +250,8 @@ function Invoke-FindPublicGroups {
                 if ($GroupIdToRoleMap.ContainsKey($groupId)) {
                     Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Yellow
                     "[Privileged] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : Role = $($GroupIdToRoleMap[$groupId])" | Add-Content -Path "Public_Groups.txt"
-                } else {
+			 Read-Host "[!] Press ENTER to continue scanning..."                
+		} else {
                     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
                     "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
                 }
