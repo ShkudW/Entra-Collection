@@ -1,10 +1,15 @@
-function Get-GraphAccessToken {
-    param(
+
+
+function Invoke-FindServicePrincipal {
+    param (
         [Parameter(Mandatory = $true)]
         [string]$RefreshToken,
 	[Parameter(Mandatory = $true)]
         [string]$TenantID
     )
+
+
+function Get-GraphAccessToken {
 
     $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"  # BEES Tenant  
     $body = @{
@@ -22,15 +27,6 @@ function Get-GraphAccessToken {
         exit 1
     }
 }
-
-function Invoke-FindServicePrincipal {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$RefreshToken,
-	[Parameter(Mandatory = $true)]
-        [string]$TenantID
-    )
-
     $Global:GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
     $StartTime = Get-Date
 
