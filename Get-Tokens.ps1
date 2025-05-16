@@ -1,4 +1,4 @@
-function Get-DeviceCodeToken {
+function Get-Tokens {
         $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
         $headers = @{ 'User-Agent' = 'Mozilla/5.0' }
         $body = @{
@@ -47,9 +47,7 @@ function Get-DeviceCodeToken {
                 }
             }
         }
-		$Tokens = Get-DeviceCodeToken
-			Write-Host "`n[+] Access Token:`n$($Tokens.AccessToken)" -ForegroundColor Green
-			Write-Host "`n[+] Refresh Token:`n$($Tokens.RefreshToken)" -ForegroundColor Cyan
+	
 
 		
     }
