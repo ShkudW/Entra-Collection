@@ -1,28 +1,8 @@
-function Get-GraphAccessToken {
-    param([Parameter(Mandatory = $true)][string]$RefreshToken)
-    $url = "https://login.microsoftonline.com/cef04b19-7776-4a94-b89b-375c77a8f936/oauth2/v2.0/token"
-    $body = @{
-        client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-        scope         = "https://graph.microsoft.com/.default"
-        grant_type    = "refresh_token"
-        refresh_token = $RefreshToken
-    }
-    $response = Invoke-RestMethod -Method Post -Uri $url -Body $body
-    return $response.access_token
-}
-
-function Decode-JWT {
-    param([Parameter(Mandatory = $true)][string]$Token)
-    $tokenParts = $Token.Split(".")
-    $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
-    switch ($payload.Length % 4) { 2 { $payload += "==" }; 3 { $payload += "=" } }
-    $bytes = [System.Convert]::FromBase64String($payload)
-    return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
-}
 
 function Invoke-MembershipChange {
     param(
         [Parameter(Mandatory = $true)][string]$RefreshToken,
+		[Parameter(Mandatory = $true)][string]$TenantID,
         [Parameter(Mandatory = $true)][ValidateSet("add", "delete")][string]$Action,
         [Parameter(Mandatory = $true)][string]$GroupIdsInput,
         [string]$SuccessLogFile = ".\\success_log.txt",
@@ -30,7 +10,30 @@ function Invoke-MembershipChange {
 		
     )
 
-    $Global:GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
+	function Get-GraphAccessToken {
+	   
+	    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+	    $body = @{
+	        client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+	        scope         = "https://graph.microsoft.com/.default"
+	        grant_type    = "refresh_token"
+	        refresh_token = $RefreshToken
+	    }
+	    $response = Invoke-RestMethod -Method Post -Uri $url -Body $body
+	    return $GraphAccessToken = $response.access_token
+	}
+	
+	function Decode-JWT {
+	    param([Parameter(Mandatory = $true)][string]$Token)
+	    $tokenParts = $Token.Split(".")
+	    $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+	    switch ($payload.Length % 4) { 2 { $payload += "==" }; 3 { $payload += "=" } }
+	    $bytes = [System.Convert]::FromBase64String($payload)
+	    return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
+	}
+	    
+
+    # = Get-GraphAccessToken -RefreshToken $RefreshToken
     $DecodedToken = Decode-JWT -Token $GraphAccessToken
     $MemberId = $DecodedToken.oid
     Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor Cyan
