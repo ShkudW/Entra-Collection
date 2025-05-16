@@ -80,14 +80,12 @@ function Check-MFABypass {
             $errorMessage = $_.ErrorDetails.Message | ConvertFrom-Json
 
             if ($errorMessage.error_description -match "AADSTS53003") {
-                Write-Host "[!] Blocked by Conditional Access – Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor Red
+                Write-Host "[!] Blocked by Conditional Access - Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor Red
             }
             elseif ($errorMessage.error_description -match "AADSTS70000") {
-                Write-Host "[!] Invalid or Malformed Grant – Refresh token likely not valid for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkYellow
+                Write-Host "[!] Invalid or Malformed Grant - Refresh token likely not valid for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkYellow
 
-                
                 Write-Host "[*] Attempting to request new Refresh Token with Client ID: $ClientID..." -ForegroundColor Magenta
-
                 $deviceCodeUrl = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/devicecode"
                 $deviceBody = @{
                     client_id = $ClientID
@@ -100,9 +98,15 @@ function Check-MFABypass {
                     Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkYellow
                     Start-Process $deviceResponse.verification_uri
 
+                    $userInput = Read-Host "[*] Press Enter to continue polling, or type 'skip' to skip this client"
+                    if ($userInput -eq "skip") {
+                        Write-Host "[>] Skipping Client ID: $ClientID" -ForegroundColor Gray
+                        continue
+                    }
+
                     $pollBody = @{
-                        grant_type = "urn:ietf:params:oauth:grant-type:device_code"
-                        client_id  = $ClientID
+                        grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
+                        client_id   = $ClientID
                         device_code = $deviceResponse.device_code
                     }
 
@@ -111,28 +115,29 @@ function Check-MFABypass {
                             $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
                             Write-Host "[+] Success! New Refresh Token granted with Client ID: $ClientID" -ForegroundColor Green
 
-								Write-Host "`nAccess Token:`n$($pollResponse.access_token)" -ForegroundColor Yellow
-								Write-Host "`nRefresh Token:`n$($pollResponse.refresh_token)" -ForegroundColor Cyan
-
-								break
-
+                            Write-Host "`nAccess Token:`n$($pollResponse.access_token)" -ForegroundColor Yellow
+                            Write-Host "`nRefresh Token:`n$($pollResponse.refresh_token)" -ForegroundColor Cyan
+                            break
                         } catch {
                             $inner = $_.ErrorDetails.Message | ConvertFrom-Json
                             if ($inner.error -eq "authorization_pending") {
                                 Start-Sleep -Seconds 5
+                            } elseif ($inner.error -eq "authorization_declined" -or $inner.error -eq "expired_token") {
+                                Write-Host "[-] Authorization failed or expired for Client ID: $ClientID" -ForegroundColor Red
+                                break
                             } else {
-                                Write-Host "[-] Failed to get new refresh token: $($inner.error_description)" -ForegroundColor Red
+                                Write-Host "[-] Polling error: $($inner.error_description)" -ForegroundColor Red
                                 break
                             }
                         }
                     }
 
                 } catch {
-                    Write-Host "[-] Device Code flow failed for Client ID: $ClientID – $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Host "[-] Device Code flow failed for Client ID: $ClientID - $($_.Exception.Message)" -ForegroundColor Red
                 }
 
             } else {
-                Write-Host "[-] Unhandled error for Client ID: $ClientID – $($errorMessage.error_description)" -ForegroundColor Red
+                Write-Host "[-] Unhandled error for Client ID: $ClientID - $($errorMessage.error_description)" -ForegroundColor Red
             }
         }
 
