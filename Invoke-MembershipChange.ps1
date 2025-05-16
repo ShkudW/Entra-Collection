@@ -20,7 +20,7 @@ function Invoke-MembershipChange {
 	        refresh_token = $RefreshToken
 	    }
 	    $response = Invoke-RestMethod -Method Post -Uri $url -Body $body
-	    return $GraphAccessToken = $response.access_token
+	    return $response.access_token
 	}
 	
 	function Decode-JWT {
@@ -33,7 +33,7 @@ function Invoke-MembershipChange {
 	}
 	    
 
-    # = Get-GraphAccessToken -RefreshToken $RefreshToken
+     $GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
     $DecodedToken = Decode-JWT -Token $GraphAccessToken
     $MemberId = $DecodedToken.oid
     Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor Cyan
