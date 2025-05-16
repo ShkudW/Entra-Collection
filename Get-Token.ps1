@@ -1,4 +1,4 @@
-function Get-Tokens {
+function Get-DeviceCodeToken {
         $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
         $headers = @{ 'User-Agent' = 'Mozilla/5.0' }
         $body = @{
@@ -25,12 +25,16 @@ function Get-Tokens {
         while ($true) {
             try {
                 $tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop
-				$AccessToken = $tokenResponse.access_token
-				$RefreshToken = $tokenResponse.refresh_token
-				return [PSCustomObject]@{
-					AccessToken  = $AccessToken
-					RefreshToken = $RefreshToken
-				}
+            $AccessToken = $tokenResponse.access_token
+            $RefreshToken = $tokenResponse.refresh_token
+
+            Write-Host "`n[+] Access Token:`n$AccessToken" -ForegroundColor Green
+            Write-Host "`n[+] Refresh Token:`n$RefreshToken" -ForegroundColor Cyan
+
+            return [PSCustomObject]@{
+                AccessToken  = $AccessToken
+                RefreshToken = $RefreshToken
+            }
 
             } catch {
                 $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
