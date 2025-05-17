@@ -1,0 +1,94 @@
+function Invoke-GroupMappingFromJWT {
+    param (
+        [Parameter(Mandatory = $true)][string]$jwt,
+        [Parameter(Mandatory = $true)][string]$GraphAccessToken
+    )
+
+    function Decode-JWT {
+        param ([string]$Token)
+        $tokenParts = $Token.Split('.')
+        if ($tokenParts.Length -lt 2) {
+            throw "Invalid JWT format"
+        }
+
+        $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+        switch ($payload.Length % 4) {
+            2 { $payload += "==" }
+            3 { $payload += "=" }
+            1 { $payload += "===" }
+        }
+
+        $bytes = [System.Convert]::FromBase64String($payload)
+        $json = [System.Text.Encoding]::UTF8.GetString($bytes)
+        return $json | ConvertFrom-Json
+    }
+
+    Write-Host "`n[*] Decoding JWT..." -ForegroundColor Cyan
+    $DecodedToken = Decode-JWT -Token $jwt
+
+    if (-not $DecodedToken.groups) {
+        Write-Host "[-] No 'groups' claim found in the token." -ForegroundColor Red
+        return
+    }
+
+    $GroupIds = $DecodedToken.groups
+    Write-Host "[*] Found $($GroupIds.Count) groups in token. Resolving via Graph..." -ForegroundColor Cyan
+
+    foreach ($gid in $GroupIds) {
+        $groupUrl = "https://graph.microsoft.com/v1.0/groups/$gid"
+        $roleUrl = "https://graph.microsoft.com/v1.0/directoryRoles"
+        $headers = @{ Authorization = "Bearer $GraphAccessToken" }
+        $RetryCount = 0
+        $MaxRetries = 5
+
+        while ($RetryCount -lt $MaxRetries) {
+            try {
+                $group = Invoke-RestMethod -Uri $groupUrl -Headers $headers -Method GET -ErrorAction Stop
+                Write-Host "`n[+] $($group.displayName) ($gid)" -ForegroundColor Green
+                if ($group.groupTypes -contains "Unified") {
+						Write-Host "    [Type] Microsoft 365 Group (Unified)" -ForegroundColor DarkCyan
+					} elseif ($group.securityEnabled -eq $true) {
+						Write-Host "    [Type] Security Group" -ForegroundColor DarkCyan
+					} else {
+						Write-Host "    [Type] Unknown / Other" -ForegroundColor DarkCyan
+					}
+
+               
+                $appRoleUrl = "https://graph.microsoft.com/v1.0/groups/$gid/appRoleAssignments"
+                $appRoles = Invoke-RestMethod -Uri $appRoleUrl -Headers $headers -Method GET -ErrorAction Stop
+                if ($appRoles.value.Count -eq 0) {
+                    Write-Host "    [AppRoleAssignment] None" -ForegroundColor DarkGray
+                } else {
+                    foreach ($app in $appRoles.value) {
+                        Write-Host "    [AppRoleAssignment] ResourceId: $($app.resourceId) - RoleId: $($app.appRoleId)" -ForegroundColor Magenta
+                    }
+                }
+
+                
+                $roles = Invoke-RestMethod -Uri $roleUrl -Headers $headers -Method GET -ErrorAction Stop
+                $matchingRole = $roles.value | Where-Object { $_.members -contains "https://graph.microsoft.com/v1.0/groups/$gid" }
+
+                if ($matchingRole) {
+                    Write-Host "    [Directory Role] $($matchingRole.displayName)" -ForegroundColor Yellow
+                } else {
+                    Write-Host "    [Directory Role] None" -ForegroundColor DarkGray
+                }
+
+                break
+            } catch {
+                $response = $_.Exception.Response
+                if ($response -and $response.StatusCode.value__ -eq 429) {
+                    $retryAfter = 20
+                    Write-Host "[!] Rate limited (429) - retrying in $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $retryAfter
+                    $RetryCount++
+                } else {
+                    Write-Host "[-] Could not resolve group: $gid" -ForegroundColor DarkGray
+                    break
+                }
+            }
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+}
