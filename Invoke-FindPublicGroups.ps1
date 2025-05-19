@@ -128,7 +128,7 @@ function Invoke-FindPublicGroups {
     }
 
     $headers = @{ Authorization = "Bearer $AccessToken" }
-    $keywords = @("username", "accesstoken", "refreshtoken", "token", "password", "key", "keys", "secret")
+    $keywords = @("admin", "accesstoken", "refreshtoken", "token", "password", "secret")
 
     function Invoke-With-Retry {
         param (
