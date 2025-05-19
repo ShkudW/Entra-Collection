@@ -128,7 +128,7 @@ function Invoke-FindPublicGroups {
     }
 
     $headers = @{ Authorization = "Bearer $AccessToken" }
-    $keywords = @("password", "token", "secret", "vault", "pass", "access", "username", "key", "keys", "secrets", "vaults")
+    $keywords = @("username", "accesstoken", "refreshtoken", "token", "password", "key", "keys", "secret")
 
     function Invoke-With-Retry {
         param (
@@ -181,7 +181,7 @@ function Invoke-FindPublicGroups {
                 $plainText = ($decoded -replace '<[^>]+>', '') -replace '\s{2,}', ' '
 
                 foreach ($kw in $keywords) {
-                    if ($plainText -match "(?i)\b$kw\b.{0,80}") {
+                    if ($plainText -match "(?i)\b$kw\b.{0,200}") {
                         $matchLine = $matches[0]
                         Write-Host "[!!!] Suspicious content found in group '$GroupName': $kw" -ForegroundColor Red
                         Write-Host "`t--> $matchLine" -ForegroundColor Gray
