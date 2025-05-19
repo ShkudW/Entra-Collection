@@ -169,7 +169,9 @@ function Invoke-FindPublicGroups {
 
             foreach ($post in $posts.value) {
                 $rawHtml = $post.body.content
-                $fileName = "$GroupId-$($convo.id)-$($thread.id).html"
+                $rawName = "$GroupId-$($convo.id)-$($thread.id)"
+				$cleanName = ($rawName -replace '[^a-zA-Z0-9_-]', '')
+				$fileName = "$cleanName.html"
                 $filePath = "Conversations\$fileName"
                 $rawHtml | Out-File -FilePath $filePath -Encoding utf8
 
