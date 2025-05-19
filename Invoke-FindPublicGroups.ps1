@@ -13,7 +13,10 @@ function Invoke-FindPublicGroups {
         [string]$DomainName,
 	
         [Parameter(Mandatory = $false)]
-        [string]$SecretId
+        [string]$SecretId,
+		
+        [Parameter(Mandatory = $false)]
+        [switch]$Deap		
     )
 	
 	function Get-DomainName {
@@ -86,26 +89,140 @@ function Invoke-FindPublicGroups {
         }
     }
 	
-	function Get-GroupsWithDirectoryRoles {
-    param ($AccessToken)
+	 function Invoke-With-Retry {
+        param (
+            [string]$Url,
+            [hashtable]$Headers
+        )
+        $success = $false
+        $response = $null
+        do {
+            try {
+                $response = Invoke-RestMethod -Uri $Url -Headers $Headers -ErrorAction Stop
+                $success = $true
+            } catch {
+                $statusCode = $_.Exception.Response.StatusCode.value__
+                if ($statusCode -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 7 }
+                    Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds ([int]$retryAfter)
+                } else {
+                    Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
+                    return $null
+                }
+            }
+        } while (-not $success)
+        return $response
+    }
+	
+	function Get-SensitiveConversations {
+    param (
+        [string]$GroupId,
+        [string]$GroupName,
+        [string]$AccessToken
+    )
+
+    if (-not (Test-Path "Conversations")) {
+        New-Item -ItemType Directory -Path "Conversations" | Out-Null
+    }
 
     $headers = @{ Authorization = "Bearer $AccessToken" }
-    $roles = Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/directoryRoles" -Headers $headers
+    $keywords = @("password", "token", "secret", "vault", "pass", "access", "username", "key", "keys", "secrets", "vaults")
 
-    $GroupIdsWithRoles = @{}
+    function Invoke-With-Retry {
+        param (
+            [string]$Url
+        )
+        $success = $false
+        $response = $null
+        do {
+            try {
+                $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
+                $success = $true
+            } catch {
+                $statusCode = $_.Exception.Response.StatusCode.value__
+                if ($statusCode -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 7 }
+                    Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds ([int]$retryAfter)
+                } else {
+                    Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
+                    return $null
+                }
+            }
+        } while (-not $success)
+        return $response
+    }
 
-    foreach ($role in $roles.value) {
-        $roleId = $role.id
-        $members = Invoke-RestMethod -Uri "https://graph.microsoft.com/v1.0/directoryRoles/$roleId/members" -Headers $headers
-        foreach ($member in $members.value) {
-            if ($member.'@odata.type' -eq "#microsoft.graph.group") {
-                $GroupIdsWithRoles[$member.id] = $role.displayName
+    $convos = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations"
+    if (-not $convos) { return }
+
+    foreach ($convo in $convos.value) {
+        $threads = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads"
+        if (-not $threads) { continue }
+
+        foreach ($thread in $threads.value) {
+            $posts = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads/$($thread.id)/posts"
+            if (-not $posts) { continue }
+
+            foreach ($post in $posts.value) {
+                $rawHtml = $post.body.content
+                $fileName = "$GroupId-$($convo.id)-$($thread.id).html"
+                $filePath = "Conversations\$fileName"
+                $rawHtml | Out-File -FilePath $filePath -Encoding utf8
+
+                # Convert HTML to plain text (basic strip)
+                Add-Type -AssemblyName System.Web
+                $decoded = [System.Web.HttpUtility]::HtmlDecode($rawHtml)
+                $plainText = ($decoded -replace '<[^>]+>', '') -replace '\s{2,}', ' '
+
+                foreach ($kw in $keywords) {
+                    if ($plainText -match "(?i)\b$kw\b.{0,80}") {
+                        $matchLine = $matches[0]
+                        Write-Host "[!!!] Suspicious content found in group '$GroupName': $kw" -ForegroundColor Red
+                        Write-Host "`t--> $matchLine" -ForegroundColor Gray
+
+                        Add-Content -Path "Public_Groups.txt" -Value "[DEAP] $GroupName ($GroupId) | keyword: $kw"
+                        Add-Content -Path "Public_Groups.txt" -Value "`t--> $matchLine"
+                        Add-Content -Path "Public_Groups.txt" -Value "`t--> Saved full HTML: Conversations\$fileName"
+                        break
+                    }
+                }
             }
         }
     }
-
-    return $GroupIdsWithRoles
 }
+	
+	function Get-GroupsWithDirectoryRoles {
+        param ($AccessToken)
+
+        $headers = @{ Authorization = "Bearer $AccessToken" }
+        $roles = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/directoryRoles" -Headers $headers
+
+        $GroupIdsWithRoles = @{}
+        $ProcessedRoleIds = @{}
+
+        foreach ($role in $roles.value) {
+            $roleId = $role.id
+            if ($ProcessedRoleIds.ContainsKey($roleId)) { continue }
+
+            $memberUrl = "https://graph.microsoft.com/v1.0/directoryRoles/$roleId/members"
+            $members = Invoke-With-Retry -Url $memberUrl -Headers $headers
+            Start-Sleep -Milliseconds 300
+
+            foreach ($member in $members.value) {
+                if ($member.'@odata.type' -eq "#microsoft.graph.group") {
+                    $GroupIdsWithRoles[$member.id] = $role.displayName
+                }
+            }
+
+            $ProcessedRoleIds[$roleId] = $true
+        }
+
+        return $GroupIdsWithRoles
+    }
 
 	if (-not $TenantID -and $DomainName) {
     $TenantID = Get-DomainName -DomainName $DomainName
@@ -189,12 +306,12 @@ function Invoke-FindPublicGroups {
 	
 
 		$GroupIdToRoleMap = @{}
-		$success = $false
+		$success1 = $false
 		do {
 			try {
 				Write-Host "[*] Fetching directory role assignments..." -ForegroundColor DarkCyan
 				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
-				$success = $true
+				$success1 = $true
 			} catch {
 				$statusCode = $_.Exception.Response.StatusCode.value__
 				if ($statusCode -eq 429) {
@@ -216,7 +333,7 @@ function Invoke-FindPublicGroups {
 					return
 				}
 			}
-		} while (-not $success)
+		} while (-not $success1)
 
 	
 	
@@ -227,7 +344,7 @@ function Invoke-FindPublicGroups {
         do {
             try {
                 $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
-				#$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+				
                 $success = $true
             } catch {
                 $statusCode = $_.Exception.Response.StatusCode.value__
@@ -276,6 +393,12 @@ function Invoke-FindPublicGroups {
                     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
                     "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
                 }
+				if ($Deap) {
+					Get-SensitiveConversations -GroupId $groupId -GroupName $groupName -AccessToken $GraphAccessToken
+				}
+
+            }
+			else {			
             }
 			
             $scannedInBatch++
