@@ -201,9 +201,10 @@ function Invoke-FindDynamicGroups {
 					#Write-Host "[$groupName] => $membershipRule" -ForegroundColor DarkCyan
 
 					$conditions = @()
-					if ($membershipRule -match '\bmail\b') { $conditions += "mail" }
-					if ($membershipRule -match '\buserPrincipalName\b') { $conditions += "userPrincipalName" }
-					if ($membershipRule -match '\bdisplayName\b') { $conditions += "displayName" }
+					if ($membershipRule -match '\buser\.mail\b') { $conditions += "mail" }
+					if ($membershipRule -match '\buser\.userPrincipalName\b') { $conditions += "userPrincipalName" }
+					if ($membershipRule -match '\buser\.displayName\b') { $conditions += "displayName" }
+
 
 					$outputLine = ""
 					if ($conditions.Count -gt 0) {
