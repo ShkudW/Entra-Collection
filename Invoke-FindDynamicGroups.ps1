@@ -208,6 +208,11 @@ function Invoke-FindDynamicGroups {
 
 					$outputLine = ""
 					if ($conditions.Count -gt 0) {
+						
+						  if ($membershipRule -match "@") {
+
+							continue  
+						}
 						$joined = ($conditions -join " AND ")
 						Write-Host "    [!] Contains sensitive rule: $joined" -ForegroundColor Yellow
 						Write-Host "      [$groupName] => $membershipRule" -ForegroundColor DarkCyan
