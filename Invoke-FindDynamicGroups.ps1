@@ -10,7 +10,7 @@ function Invoke-FindDynamicGroups {
         [string]$ClientId,
 
         [Parameter(Mandatory = $false)]
-        [string]$TenantID,
+        [string]$DomainName,
 	
         [Parameter(Mandatory = $false)]
         [string]$SecretId
@@ -25,11 +25,28 @@ function Invoke-FindDynamicGroups {
         Write-Host "Invoke-FindDynamicGroups -ClientId <Application_ClientID> -SecretId <Application_SecretID>" -ForegroundColor DarkCyan
     }
 
-    if (-not $RefreshToken -and -not $ClientId -and -not $SecretId -and -not $DeviceCodeFlow) {
+    if (-not $RefreshToken -and -not $ClientId -and -not $SecretId -and -not $DeviceCodeFlow -and -not $DomainName ) {
         Example
         return
     }
+	
+	
+	function Get-DomainName {
 
+    try {
+        $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+        $TenantID = ($response.issuer -split "/")[3]
+        Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+        return $TenantID
+    } catch {
+        Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+        return $null
+    }
+}
+
+	$TenantID = Get-DomainName
+
+	
     function Get-DeviceCodeToken {
         $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
         $headers = @{ 'User-Agent' = 'Mozilla/5.0' }
@@ -70,8 +87,8 @@ function Invoke-FindDynamicGroups {
         }
     }
 
-    function Get-Token-WithRefreshToken {
-        param ([string]$RefreshToken)
+ function Get-Token-WithRefreshToken {
+       # param ([string]$RefreshToken)
         $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
         $body = @{
             "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
@@ -83,7 +100,7 @@ function Invoke-FindDynamicGroups {
     }
 
     function Get-Token-WithClientSecret {
-        param ([string]$ClientId, [string]$SecretId)
+      # param ([string]$ClientId, [string]$SecretId)
         $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
         $body = @{
             "client_id"     = $ClientId
@@ -93,6 +110,7 @@ function Invoke-FindDynamicGroups {
         }
         return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
     }
+
 
     
     $authMethod = ""
@@ -172,23 +190,44 @@ function Invoke-FindDynamicGroups {
         $batchCount = $groupsBatch.Count
         $scannedInBatch = 0
 
-        foreach ($group in $groupsBatch) {
-            $groupId = $group.id
-            $groupName = $group.displayName
-            $membershipRule = $group.membershipRule
+			foreach ($group in $groupsBatch) {
+				$groupId = $group.id
+				$groupName = $group.displayName
+				$membershipRule = $group.membershipRule
 
-            if ($membershipRule -eq $null) {
-                
-            } else {
-                Write-Host "[+] $groupName ($groupId) is Dynamic" -ForegroundColor DarkGreen
-                "$($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $membershipRule" | Add-Content -Path "Dynamic_Groups.txt"
-            }
+				if ($membershipRule -ne $null) {
+				
+					Write-Host "[+] $groupName ($groupId) is Dynamic" -ForegroundColor DarkGreen
+					#Write-Host "[$groupName] => $membershipRule" -ForegroundColor DarkCyan
 
-            $scannedInBatch++
-            $totalGroupsScanned++
-            $percent = [math]::Round(($scannedInBatch / $batchCount) * 100)
-            Write-Progress -Activity "Scanning Dynamic Groups..." -Status "$percent% Complete in current batch" -PercentComplete $percent
-        }
+					$conditions = @()
+					if ($membershipRule -match '\bmail\b') { $conditions += "mail" }
+					if ($membershipRule -match '\buserPrincipalName\b') { $conditions += "userPrincipalName" }
+					if ($membershipRule -match '\bdisplayName\b') { $conditions += "displayName" }
+
+					$outputLine = ""
+					if ($conditions.Count -gt 0) {
+						$joined = ($conditions -join " AND ")
+						Write-Host "    [!] Contains sensitive rule: $joined" -ForegroundColor Yellow
+						$outputLine = "      [Sensitive Rule] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $joined : $membershipRule"
+					} else {
+						$outputLine = "$($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $membershipRule"
+					}
+
+
+					
+					try {
+						Add-Content -Path "Dynamic_Groups.txt" -Value $outputLine
+					} catch {
+						Write-Host "[!] Failed to write to file: $_" -ForegroundColor Red
+					}
+				}
+
+				$scannedInBatch++
+				$totalGroupsScanned++
+				$percent = [math]::Round(($scannedInBatch / $batchCount) * 100)
+				Write-Progress -Activity "Scanning Dynamic Groups..." -Status "$percent% Complete in current batch" -PercentComplete $percent
+			}
 
         if ((New-TimeSpan -Start $startTime).TotalMinutes -ge $refreshIntervalMinutes) {
             Write-Host "[*] Refresh interval reached, refreshing token..." -ForegroundColor DarkYellow
