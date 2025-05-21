@@ -74,7 +74,7 @@ function Get-Tokens {
 		$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
 		$code = $authResponse.user_code
 		$deviceCode = $authResponse.device_code
-		Write-Host "`n[*] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
+		Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
 		Write-Host " $code" -ForegroundColor DarkYellow
 		Start-Sleep -Seconds 5
 		Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
@@ -93,8 +93,9 @@ function Get-Tokens {
 				$RefreshToken = $tokenResponse.refresh_token
 				Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
 				Write-Host "`n[+] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkYellow
-                if($Graph) {Write-Host "    Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkCyan}
-                if($ARM)   {Write-Host "    Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkCyan}
+                Write-Host " " 
+                if($Graph) {Write-Host "[>] Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkCyan}
+                if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkCyan}
                 Write-Host " " 
 				$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
 
@@ -119,8 +120,8 @@ function Get-Tokens {
                 try {
 					$refreshResponse = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBody -ContentType "application/x-www-form-urlencoded"
 					$AccessToken = $refreshResponse.access_token
-                    if($Graph) {Write-Host "   [+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
-                    if($ARM) {Write-Host "   [+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
+                    if($Graph) {Write-Host "[+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
+                    if($ARM) {Write-Host "[+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
                     return Write-Host "$AccessToken" -ForegroundColor DarkYellow
 					} catch {
 						    Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor Red
@@ -141,9 +142,6 @@ function Get-Tokens {
 				}
 
 }
-
-
-
 
 function Check-MFABypass {
 	
@@ -213,68 +211,65 @@ function Check-MFABypass {
     }
 		
 		function Get-DomainName {
-				try {
-					$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-					$TenantID = ($response.issuer -split "/")[3]
-					Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-					return $TenantID
-				} catch {
-						Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-						return $null
-					}
-			}
-			
-		$TenantID = Get-DomainName
-		
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[>] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+				return $TenantID
+			} catch {
+				    Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+					return $null
+				}
+		}
+
+        if($DomainName)	{$TenantID = Get-DomainName}
 		
         foreach ($ClientID in $ClientIDs.Keys) {
-        Write-Host "`n[*] Trying Client ID: $ClientID ($($ClientIDs[$ClientID]))..." -ForegroundColor Cyan
-
-        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-        $body = @{
-            client_id     = $ClientID
-            scope         = "https://management.azure.com/.default"
-            grant_type    = "refresh_token"
-            refresh_token = $RefreshToken
-        }
-
-        try {
-            $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
-
-            if ($response.access_token) {
-                Write-Host "`n[+] SUCCESS: Access Token for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor Green
-                Write-Host "`nAccess Token:`n$response.access_token" -ForegroundColor Yellow
-            } else {
-                Write-Host "[-] No access token received for Client ID: $ClientID" -ForegroundColor DarkYellow
-            }
-
-        } catch {
-            $errorMessage = $_.ErrorDetails.Message | ConvertFrom-Json
-
-            if ($errorMessage.error_description -match "AADSTS53003") {
-                Write-Host "[!] Blocked by Conditional Access - Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor Red
-            }
-            elseif ($errorMessage.error_description -match "AADSTS70000") {
-                Write-Host "[!] Invalid or Malformed Grant - Refresh token likely not valid for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkYellow
-
-                Write-Host "[*] Attempting to request new Refresh Token with Client ID: $ClientID..." -ForegroundColor Magenta
-                $deviceCodeUrl = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/devicecode"
-                $deviceBody = @{
-                    client_id = $ClientID
-                    scope     = "offline_access https://management.azure.com/.default"
+                Write-Host "`n[*] Trying Client ID: $ClientID ($($ClientIDs[$ClientID]))..." -ForegroundColor DarkCyan
+                $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+                $body = @{
+                    "client_id"     = $ClientID
+                    "scope"         = "https://management.azure.com/.default"
+                    "grant_type"   = "refresh_token"
+                    "refresh_token" = $RefreshToken
                 }
 
-                try {
-                    $deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $deviceBody
-                    Write-Host "[>] Open browser and enter code:" -ForegroundColor DarkCyan -NoNewline
-                    Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkYellow
-                    Start-Process $deviceResponse.verification_uri
+            try {
+                $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
+                $AccessToken = $response.access_token
+                if ($AccessToken) {
+                    Write-Host "[SUCCESS] Access Token for ARM API with Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGreen
+                    Write-Host "Access Token: $AccessToken" -ForegroundColor DarkYellow
+                } else {
+                    Write-Host "[-] No access token received for Client ID: $ClientID" -ForegroundColor DarkYellow
+                }
 
-                    $userInput = Read-Host "[*] Press Enter to continue polling, or type 'skip' to skip this client"
-                    if ($userInput -eq "skip") {
-                        Write-Host "[>] Skipping Client ID: $ClientID" -ForegroundColor Gray
-                        continue
+             } catch {
+                $errorMessage = $_.ErrorDetails.Message | ConvertFrom-Json
+                if ($errorMessage.error_description -match "AADSTS53003") {
+                    Write-Host "[!] Blocked by Conditional Access - Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkRed
+                }
+                elseif ($errorMessage.error_description -match "AADSTS70000") {
+                    Write-Host "[!] Invalid or Malformed Grant - Refresh token likely not valid for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGray
+                    Write-Host "[>] Device Code Flow with Client ID: $ClientID for trying to bypass continental access" -ForegroundColor DarkCyan
+                    $deviceCodeUrl = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/devicecode"
+                    $deviceBody = @{
+                    client_id = $ClientID
+                    scope     = "offline_access https://management.azure.com/.default"
+                    #"Resource"     = "https://management.azure.com"
                     }
+
+                    try {
+                        $deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $deviceBody
+                        Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
+                        Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkYellow
+                        Start-Process $deviceResponse.verification_uri
+
+                        $userInput = Read-Host "[...] Press Enter to continue polling, or type 'skip' to skip this client"
+                        if ($userInput -eq "skip") {
+                            Write-Host "[>] Skipping Client ID: $ClientID" -ForegroundColor Gray
+                        continue
+                        }
 
                     $pollBody = @{
                         grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
@@ -285,10 +280,9 @@ function Check-MFABypass {
                     while ($true) {
                         try {
                             $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
-                            Write-Host "[+] Success! New Refresh Token granted with Client ID: $ClientID" -ForegroundColor Green
-
-                            Write-Host "`nAccess Token:`n$($pollResponse.access_token)" -ForegroundColor Yellow
-                            Write-Host "`nRefresh Token:`n$($pollResponse.refresh_token)" -ForegroundColor Cyan
+                           $AccessToken = $pollResponse.access_token
+                            Write-Host "[SUCCESS] New Access Token granted with Client ID: $ClientID" -ForegroundColor DarkGreen
+                            Write-Host "Access Token: $AccessToken" -ForegroundColor DarkYellow
                             break
                         } catch {
                             $inner = $_.ErrorDetails.Message | ConvertFrom-Json
