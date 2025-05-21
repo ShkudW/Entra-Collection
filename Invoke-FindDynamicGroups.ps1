@@ -218,7 +218,7 @@ function Invoke-FindDynamicGroups {
 						Write-Host "      [$groupName] => $membershipRule" -ForegroundColor DarkCyan
 						$outputLine = "      [Sensitive Rule] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $joined : $membershipRule"
 					} else {
-						$outputLine = "$($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $membershipRule"
+						#$outputLine = "No interesting.."
 					}
 
 
