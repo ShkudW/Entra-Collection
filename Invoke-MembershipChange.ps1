@@ -1,7 +1,10 @@
 
 function Invoke-MembershipChange {
     param(
-        [Parameter(Mandatory = $true)][string]$RefreshToken,
+        [Parameter(Mandatory = $false)][string]$RefreshToken,
+		[Parameter(Mandatory = $false)][string]$ClientID,
+		[Parameter(Mandatory = $false)][string]$ClientSecret,
+		[Parameter(Mandatory = $false)][string]$UserID,
 		[Parameter(Mandatory = $true)][string]$TenantID,
         [Parameter(Mandatory = $true)][ValidateSet("add", "delete")][string]$Action,
         [Parameter(Mandatory = $true)][string]$GroupIdsInput,
@@ -10,18 +13,58 @@ function Invoke-MembershipChange {
 		
     )
 
-	function Get-GraphAccessToken {
-	   
-	    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-	    $body = @{
-	        client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-	        scope         = "https://graph.microsoft.com/.default"
-	        grant_type    = "refresh_token"
-	        refresh_token = $RefreshToken
-	    }
-	    $response = Invoke-RestMethod -Method Post -Uri $url -Body $body
-	    return $response.access_token
-	}
+		function Get-Token-WithRefreshToken {
+		param(
+        [Parameter(Mandatory = $false)][string]$RefreshToken
+		)
+		
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "refresh_token"
+				"refresh_token" = $RefreshToken
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+
+		function Get-Token-WithClientSecret {
+		param(
+			[Parameter(Mandatory = $false)][string]$ClientID,
+		[Parameter(Mandatory = $false)][string]$ClientSecret
+		)
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+	
+
+
+
+				$authMethod = ""
+			if ($RefreshToken) {
+				$authMethod = "refresh"
+				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+			} elseif ($ClientId -and $ClientSecret) {
+				$authMethod = "client"
+				$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
+			} elseif ($DeviceCodeFlow) {
+				$authMethod = "refresh"
+				if (Test-Path "C:\Users\Public\RefreshToken.txt"){
+					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
+					$RefreshToken = Get-DeviceCodeToken
+					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
+					Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+			}
+
+		if (-not $GraphAccessToken) { return }
+
 	
 	function Decode-JWT {
 	    param([Parameter(Mandatory = $true)][string]$Token)
@@ -31,11 +74,16 @@ function Invoke-MembershipChange {
 	    $bytes = [System.Convert]::FromBase64String($payload)
 	    return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
 	}
-	    
-
-     $GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
-    $DecodedToken = Decode-JWT -Token $GraphAccessToken
-    $MemberId = $DecodedToken.oid
+	
+	
+			if($UserID){
+				$MemberId = $UserID
+			}
+			else {
+			$DecodedToken = Decode-JWT -Token $GraphAccessToken
+			$MemberId = $DecodedToken.oid
+			}
+	
     Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor Cyan
 
     $GroupIds = if (Test-Path $GroupIdsInput) {
