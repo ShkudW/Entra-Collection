@@ -206,7 +206,7 @@ function Invoke-FindDynamicGroups {
 					if ($membershipRule -match '\buser\.displayName\b') { $conditions += "displayName" }
 
 
-					$outputLine = ""
+					#$outputLine = ""
 					if ($conditions.Count -gt 0) {
 						
 						  if ($membershipRule -match "@") {
