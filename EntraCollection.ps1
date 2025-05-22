@@ -1435,53 +1435,62 @@ Invoke-FindUserByWord -RefreshToken <Refresh Token> -DomainName <domain.local> -
 <######################################################################################################################################################>
 
 function Invoke-GroupMappingFromJWT {
+
+<#
+if your Access Token contain a list of groups
+this script will help you to enumerate this groups for undestanding if youi have high privilege.
+
+Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <eyJ0eXAiOiJKV1QiLCJub25j...>
+
+#>
+
     param (
         [Parameter(Mandatory = $true)][string]$jwt,
         [Parameter(Mandatory = $true)][string]$GraphAccessToken
     )
 
-    function Decode-JWT {
-        param ([string]$Token)
-        $tokenParts = $Token.Split('.')
-        if ($tokenParts.Length -lt 2) {
-            throw "Invalid JWT format"
+        function Decode-JWT {
+            param ([string]$Token)
+            $tokenParts = $Token.Split('.')
+            if ($tokenParts.Length -lt 2) {
+                throw "Invalid JWT format"
+            }
+
+            $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+            switch ($payload.Length % 4) {
+                2 { $payload += "==" }
+                3 { $payload += "=" }
+                1 { $payload += "===" }
+            }
+
+            $bytes = [System.Convert]::FromBase64String($payload)
+            $json = [System.Text.Encoding]::UTF8.GetString($bytes)
+            return $json | ConvertFrom-Json
+        }   
+
+        Write-Host "`n[*] Decoding JWT..." -ForegroundColor Cyan
+        $DecodedToken = Decode-JWT -Token $jwt
+
+        if (-not $DecodedToken.groups) {
+            Write-Host "[-] No 'groups' claim found in the token." -ForegroundColor Red
+            return
         }
 
-        $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
-        switch ($payload.Length % 4) {
-            2 { $payload += "==" }
-            3 { $payload += "=" }
-            1 { $payload += "===" }
-        }
+        $GroupIds = $DecodedToken.groups
+        Write-Host "[*] Found $($GroupIds.Count) groups in token. Resolving via Graph..." -ForegroundColor Cyan
 
-        $bytes = [System.Convert]::FromBase64String($payload)
-        $json = [System.Text.Encoding]::UTF8.GetString($bytes)
-        return $json | ConvertFrom-Json
-    }
+        foreach ($gid in $GroupIds) {
+            $groupUrl = "https://graph.microsoft.com/v1.0/groups/$gid"
+            $roleUrl = "https://graph.microsoft.com/v1.0/directoryRoles"
+            $headers = @{ Authorization = "Bearer $GraphAccessToken" }
+            $RetryCount = 0
+            $MaxRetries = 5
 
-    Write-Host "`n[*] Decoding JWT..." -ForegroundColor Cyan
-    $DecodedToken = Decode-JWT -Token $jwt
-
-    if (-not $DecodedToken.groups) {
-        Write-Host "[-] No 'groups' claim found in the token." -ForegroundColor Red
-        return
-    }
-
-    $GroupIds = $DecodedToken.groups
-    Write-Host "[*] Found $($GroupIds.Count) groups in token. Resolving via Graph..." -ForegroundColor Cyan
-
-    foreach ($gid in $GroupIds) {
-        $groupUrl = "https://graph.microsoft.com/v1.0/groups/$gid"
-        $roleUrl = "https://graph.microsoft.com/v1.0/directoryRoles"
-        $headers = @{ Authorization = "Bearer $GraphAccessToken" }
-        $RetryCount = 0
-        $MaxRetries = 5
-
-        while ($RetryCount -lt $MaxRetries) {
-            try {
-                $group = Invoke-RestMethod -Uri $groupUrl -Headers $headers -Method GET -ErrorAction Stop
-                Write-Host "`n[+] $($group.displayName) ($gid)" -ForegroundColor Green
-                if ($group.groupTypes -contains "Unified") {
+            while ($RetryCount -lt $MaxRetries) {
+                try {
+                    $group = Invoke-RestMethod -Uri $groupUrl -Headers $headers -Method GET -ErrorAction Stop
+                    Write-Host "`n[+] $($group.displayName) ($gid)" -ForegroundColor Green
+                    if ($group.groupTypes -contains "Unified") {
 						Write-Host "    [Type] Microsoft 365 Group (Unified)" -ForegroundColor DarkCyan
 					} elseif ($group.securityEnabled -eq $true) {
 						Write-Host "    [Type] Security Group" -ForegroundColor DarkCyan
@@ -1490,48 +1499,51 @@ function Invoke-GroupMappingFromJWT {
 					}
 
                
-                $appRoleUrl = "https://graph.microsoft.com/v1.0/groups/$gid/appRoleAssignments"
-                $appRoles = Invoke-RestMethod -Uri $appRoleUrl -Headers $headers -Method GET -ErrorAction Stop
-                if ($appRoles.value.Count -eq 0) {
-                    Write-Host "    [AppRoleAssignment] None" -ForegroundColor DarkGray
-                } else {
-                    foreach ($app in $appRoles.value) {
-                        Write-Host "    [AppRoleAssignment] ResourceId: $($app.resourceId) - RoleId: $($app.appRoleId)" -ForegroundColor Magenta
+                    $appRoleUrl = "https://graph.microsoft.com/v1.0/groups/$gid/appRoleAssignments"
+                    $appRoles = Invoke-RestMethod -Uri $appRoleUrl -Headers $headers -Method GET -ErrorAction Stop
+                    if ($appRoles.value.Count -eq 0) {
+                        Write-Host "    [AppRoleAssignment] None" -ForegroundColor DarkGray
+                    } else {
+                        foreach ($app in $appRoles.value) {
+                            Write-Host "    [AppRoleAssignment] ResourceId: $($app.resourceId) - RoleId: $($app.appRoleId)" -ForegroundColor Magenta
+                        }
                     }
-                }
 
                 
-                $roles = Invoke-RestMethod -Uri $roleUrl -Headers $headers -Method GET -ErrorAction Stop
-                $matchingRole = $roles.value | Where-Object { $_.members -contains "https://graph.microsoft.com/v1.0/groups/$gid" }
+                    $roles = Invoke-RestMethod -Uri $roleUrl -Headers $headers -Method GET -ErrorAction Stop
+                    $matchingRole = $roles.value | Where-Object { $_.members -contains "https://graph.microsoft.com/v1.0/groups/$gid" }
 
-                if ($matchingRole) {
-                    Write-Host "    [Directory Role] $($matchingRole.displayName)" -ForegroundColor Yellow
-                } else {
-                    Write-Host "    [Directory Role] None" -ForegroundColor DarkGray
-                }
-
-                break
-            } catch {
-                $response = $_.Exception.Response
-                if ($response -and $response.StatusCode.value__ -eq 429) {
-                    $retryAfter = 20
-                    Write-Host "[!] Rate limited (429) - retrying in $retryAfter seconds..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds $retryAfter
-                    $RetryCount++
-                } else {
-                    Write-Host "[-] Could not resolve group: $gid" -ForegroundColor DarkGray
+                    if ($matchingRole) {
+                        Write-Host "    [Directory Role] $($matchingRole.displayName)" -ForegroundColor Yellow
+                    } else {
+                        Write-Host "    [Directory Role] None" -ForegroundColor DarkGray
+                    }
                     break
+                } catch {
+                    $response = $_.Exception.Response
+                    if ($response -and $response.StatusCode.value__ -eq 429) {
+                        $retryAfter = 20
+                        Write-Host "[!] Rate limited (429) - retrying in $retryAfter seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds $retryAfter
+                        $RetryCount++
+                    } else {
+                        Write-Host "[-] Could not resolve group: $gid" -ForegroundColor DarkGray
+                        break
+                    }
                 }
             }
-        }
-
         Start-Sleep -Milliseconds 300
-    }
+        }
 }
 
-
+<######################################################################################################################################################>
 
 function Invoke-MembershipChange {
+
+<#
+
+For adding yourself or others to group or list of groups
+#>
     param(
         [Parameter(Mandatory = $false)][string]$RefreshToken,
 		[Parameter(Mandatory = $false)][string]$ClientID,
@@ -1574,139 +1586,132 @@ function Invoke-MembershipChange {
 			}
 			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
 		}
-	
 
-
-
-				$authMethod = ""
-			if ($RefreshToken) {
-				$authMethod = "refresh"
+		$authMethod = ""
+		if ($RefreshToken) {
+			$authMethod = "refresh"
+			$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+		} elseif ($ClientId -and $ClientSecret) {
+			$authMethod = "client"
+			$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
+		} elseif ($DeviceCodeFlow) {
+			$authMethod = "refresh"
+			if (Test-Path "C:\Users\Public\RefreshToken.txt"){
+				Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
+				$RefreshToken = Get-DeviceCodeToken
+				Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
+				Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
-			} elseif ($ClientId -and $ClientSecret) {
-				$authMethod = "client"
-				$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
-			} elseif ($DeviceCodeFlow) {
-				$authMethod = "refresh"
-				if (Test-Path "C:\Users\Public\RefreshToken.txt"){
-					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
-					$RefreshToken = Get-DeviceCodeToken
-					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-					Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
-					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
 			}
-
 		if (-not $GraphAccessToken) { return }
 
 	
-	function Decode-JWT {
-	    param([Parameter(Mandatory = $true)][string]$Token)
-	    $tokenParts = $Token.Split(".")
-	    $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
-	    switch ($payload.Length % 4) { 2 { $payload += "==" }; 3 { $payload += "=" } }
-	    $bytes = [System.Convert]::FromBase64String($payload)
-	    return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
-	}
+	    function Decode-JWT {
+            param([Parameter(Mandatory = $true)][string]$Token)
+            $tokenParts = $Token.Split(".")
+            $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+            switch ($payload.Length % 4) { 2 { $payload += "==" }; 3 { $payload += "=" } }
+            $bytes = [System.Convert]::FromBase64String($payload)
+            return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
+	    }
 	
 	
-			if($UserID){
-				$MemberId = $UserID
-			}
-			else {
+		if($UserID){
+			$MemberId = $UserID
+		}
+		else {
 			$DecodedToken = Decode-JWT -Token $GraphAccessToken
 			$MemberId = $DecodedToken.oid
-			}
+		}
 	
-    Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor Cyan
+        Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor Cyan
 
-    $GroupIds = if (Test-Path $GroupIdsInput) {
-        Get-Content -Path $GroupIdsInput | Where-Object { $_.Trim() -ne "" }
-    } else {
-        @($GroupIdsInput)
-    }
-
-    if ($Action -eq "add" -and (Test-Path $SuccessLogFile)) { Remove-Item $SuccessLogFile -Force }
-
-    $StartTime = Get-Date
-
-    foreach ($GroupId in $GroupIds) {
-
-        if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
-            Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
-            $Global:GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
-            $StartTime = Get-Date
+        $GroupIds = if (Test-Path $GroupIdsInput) {
+            Get-Content -Path $GroupIdsInput | Where-Object { $_.Trim() -ne "" }
+        } else {
+            @($GroupIdsInput)
         }
 
-        $Headers = @{
-            'Authorization' = "Bearer $GraphAccessToken"
-            'Content-Type'  = 'application/json'
-        }
+        if ($Action -eq "add" -and (Test-Path $SuccessLogFile)) { Remove-Item $SuccessLogFile -Force }
 
-        $RetryCount = 0
-        $MaxRetries = 5
-        $Success = $false
+        $StartTime = Get-Date
 
-        do {
-            try {
-                if ($Action -eq "add") {
-                    $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref"
-                    $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json
-                    Invoke-RestMethod -Method POST -Uri $Url -Headers $Headers -Body $Body -ContentType "application/json"
-                    Write-Host "[+] Added $MemberId to $GroupId" -ForegroundColor Green
-					
-                    Add-Content -Path $SuccessLogFile -Value $GroupId
-                    $Success = $true
-                } elseif ($Action -eq "delete") {
-                    $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/$MemberId/`$ref"
-                    Invoke-RestMethod -Method DELETE -Uri $Url -Headers $Headers
-                    Write-Host "[+] Removed $MemberId from $GroupId" -ForegroundColor Green
-                    Add-Content -Path $SuccessRenoveLogFile -Value $GroupId
-                    $Success = $true
-                }
-            } catch {
-                $Response = $_.Exception.Response
-                $StatusCode = 0
-                $ErrorMessage = "Unknown Error"
+        foreach ($GroupId in $GroupIds) {
 
-                if ($Response) {
-                    $StatusCode = $Response.StatusCode.value__
-                    try {
-                        $Stream = $Response.GetResponseStream()
-                        $Reader = New-Object System.IO.StreamReader($Stream)
-                        $RawBody = $Reader.ReadToEnd()
-                        $JsonBody = $RawBody | ConvertFrom-Json
-                        $ErrorMessage = $JsonBody.error.message
-                    } catch {
-                        $ErrorMessage = "Failed to parse error response."
-                    }
-                }
-
-                if ($StatusCode -eq 429) {
-                    $retryAfter = 7
-                    if ($Response.Headers["Retry-After"]) {
-                        $retryAfter = [int]$Response.Headers["Retry-After"]
-                    }
-                    Write-Host "[!] 429 Rate Limit - Sleeping $retryAfter seconds..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds $retryAfter
-                    $RetryCount++
-                }
-                elseif ($StatusCode -eq 400 -and $Action -eq "add" -and $ErrorMessage -match "already exist") {
-                    Write-Host "[=] Member already exists in ${GroupId}." -ForegroundColor Yellow
-                    #Add-Content -Path $SuccessLogFile -Value $GroupId
-                    $Success = $true
-                }
-                elseif ($StatusCode -eq 400 -and $Action -eq "delete") {
-                    Write-Host "[-] Error during DELETE from ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
-                    $Success = $true
-                }
-                else {
-                    Write-Host "[-] Unexpected error during $Action for ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
-                    $Success = $true
-                }
+            if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
+                Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
+                $Global:GraphAccessToken = Get-GraphAccessToken -RefreshToken $RefreshToken
+                $StartTime = Get-Date
             }
-        } while (-not $Success -and $RetryCount -lt $MaxRetries)
+            $Headers = @{
+                'Authorization' = "Bearer $GraphAccessToken"
+                'Content-Type'  = 'application/json'
+            }
+            $RetryCount = 0
+            $MaxRetries = 5
+            $Success = $false
 
-        Start-Sleep -Milliseconds 300
-    }
+            do {
+                try {
+                    if ($Action -eq "add") {
+                        $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref"
+                        $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json
+                        Invoke-RestMethod -Method POST -Uri $Url -Headers $Headers -Body $Body -ContentType "application/json"
+                        Write-Host "[+] Added $MemberId to $GroupId" -ForegroundColor Green
+                        
+                        Add-Content -Path $SuccessLogFile -Value $GroupId
+                        $Success = $true
+                    } elseif ($Action -eq "delete") {
+                        $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/$MemberId/`$ref"
+                        Invoke-RestMethod -Method DELETE -Uri $Url -Headers $Headers
+                        Write-Host "[+] Removed $MemberId from $GroupId" -ForegroundColor Green
+                        Add-Content -Path $SuccessRenoveLogFile -Value $GroupId
+                        $Success = $true
+                    }
+                } catch {
+                    $Response = $_.Exception.Response
+                    $StatusCode = 0
+                    $ErrorMessage = "Unknown Error"
+
+                    if ($Response) {
+                        $StatusCode = $Response.StatusCode.value__
+                        try {
+                            $Stream = $Response.GetResponseStream()
+                            $Reader = New-Object System.IO.StreamReader($Stream)
+                            $RawBody = $Reader.ReadToEnd()
+                            $JsonBody = $RawBody | ConvertFrom-Json
+                            $ErrorMessage = $JsonBody.error.message
+                        } catch {
+                            $ErrorMessage = "Failed to parse error response."
+                        }
+                    }
+
+                    if ($StatusCode -eq 429) {
+                        $retryAfter = 7
+                        if ($Response.Headers["Retry-After"]) {
+                            $retryAfter = [int]$Response.Headers["Retry-After"]
+                        }
+                        Write-Host "[!] 429 Rate Limit - Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds $retryAfter
+                        $RetryCount++
+                    }
+                    elseif ($StatusCode -eq 400 -and $Action -eq "add" -and $ErrorMessage -match "already exist") {
+                        Write-Host "[=] Member already exists in ${GroupId}." -ForegroundColor Yellow
+                        #Add-Content -Path $SuccessLogFile -Value $GroupId
+                        $Success = $true
+                    }
+                    elseif ($StatusCode -eq 400 -and $Action -eq "delete") {
+                        Write-Host "[-] Error during DELETE from ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
+                        $Success = $true
+                    }
+                    else {
+                        Write-Host "[-] Unexpected error during $Action for ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
+                        $Success = $true
+                    }
+                }
+            } while (-not $Success -and $RetryCount -lt $MaxRetries)
+            Start-Sleep -Milliseconds 300
+        }
 }
 
 
