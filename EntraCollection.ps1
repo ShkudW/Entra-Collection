@@ -62,7 +62,7 @@ function Get-Tokens {
 
         if($DomainName){$TenantID = Get-DomainName }
 			
-		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 		
 		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
 		$headers = @{ 'User-Agent' = $UserAgent }
@@ -148,7 +148,7 @@ function Check-MFABypass {
 		<#
 		
 		Trying to getting Access Token for ARM API with defferent client ids.
-		Check-MFABypass -DomainName shakudw.local -RefreshToken 
+		Check-MFABypass -DomainName domain.local -RefreshToken 
 		
 		#>	
 	
@@ -326,25 +326,18 @@ function Invoke-FindDynamicGroups {
 	
 	
 	param (
-		[Parameter(Mandatory = $false)]
-		[string]$RefreshToken,
-		[Parameter(Mandatory = $false)]
-		[switch]$DeviceCodeFlow,
-		[Parameter(Mandatory = $false)]
-		[string]$ClientID,
-		[Parameter(Mandatory = $false)]
-		[string]$DomainName,
-		[Parameter(Mandatory = $false)]
-		[string]$ClientSecret
+        [Parameter(Mandatory = $false)] [string]$RefreshToken,
+        [Parameter(Mandatory = $false)] [switch]$DeviceCodeFlow,
+		[Parameter(Mandatory = $false)] [string]$ClientID,
+		[Parameter(Mandatory = $false)] [string]$DomainName,
+		[Parameter(Mandatory = $false)] [string]$ClientSecret
     )
 
 		function Example {
-			Write-Host "`nHey F*ckers" -ForegroundColor DarkYellow
-			Write-Host "Usage:" -ForegroundColor DarkYellow
-			Write-Host "------------" -ForegroundColor DarkYellow
-			Write-Host "Invoke-FindDynamicGroups -DeviceCodeFlow" -ForegroundColor DarkCyan
-			Write-Host "Invoke-FindDynamicGroups -RefreshToken <Refresh_Token>" -ForegroundColor DarkCyan
-			Write-Host "Invoke-FindDynamicGroups -ClientId <Application_ClientID> -ClientSecret <Application_SecretID>" -ForegroundColor DarkCyan
+			Write-Host "Invoke-FindDynamicGroups:" -ForegroundColor DarkYellow
+			Write-Host " Invoke-FindDynamicGroups -DeviceCodeFlow -DomainName <domain.local>" -ForegroundColor DarkCyan
+			Write-Host " Invoke-FindDynamicGroups -RefreshToken <Refresh_Token> -DomainName <domain.local>" -ForegroundColor DarkCyan
+			Write-Host " Invoke-FindDynamicGroups -ClientId <Application_ClientID> -ClientSecret <Application_SecretID> -DomainName <domain.local>" -ForegroundColor DarkCyan
 		}
 
 		if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName ) {
@@ -352,9 +345,7 @@ function Invoke-FindDynamicGroups {
 			return
 		}
 	
-	
 		function Get-DomainName {
-
 			try {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
@@ -366,26 +357,26 @@ function Invoke-FindDynamicGroups {
 			}
 		}
 
-		$TenantID = Get-DomainName
-
-	
+        if($DomainName){$TenantID = Get-DomainName}
+		
 		function Get-DeviceCodeToken {
 			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-			$headers = @{ 'User-Agent' = 'Mozilla/5.0' }
+            $UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+			$headers = @{ 'User-Agent' = $UserAgent }
 			$body = @{
 				"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-				"scope"     = "https://graph.microsoft.com/.default"
+				"Resource"     = "https://graph.microsoft.com"
 			}
-			
+
 			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
 			$code = $authResponse.user_code
 			$deviceCode = $authResponse.device_code
-			Write-Host "`n[*] Open browser and enter code:" -ForegroundColor DarkCyan -NoNewline
+		    Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
 			Write-Host " $code" -ForegroundColor DarkYellow
 			Start-Sleep -Seconds 5
 			Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
 
-			$tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
+			$tokenUrl = "https://login.microsoftonline.com/$TenantID/oauth2/token?api-version=1.0"
 			$tokenBody = @{
 				"scope"      = "openid"
 				"client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
@@ -411,19 +402,26 @@ function Invoke-FindDynamicGroups {
 		}
 
 		function Get-Token-WithRefreshToken {
+            param(
+                [Parameter(Mandatory = $false)] [string]$RefreshToken
+            )
 
-			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-			$body = @{
-				"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-				"scope"         = "https://graph.microsoft.com/.default"
-				"grant_type"    = "refresh_token"
-				"refresh_token" = $RefreshToken
-			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			    $body = @{
+                    "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                    "scope"         = "https://graph.microsoft.com/.default"
+                    "grant_type"    = "refresh_token"
+                    "refresh_token" = $RefreshToken
+			    }
+			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
 		}
 
 		function Get-Token-WithClientSecret {
-    
+            param(
+                [Parameter(Mandatory = $false)] [string]$ClientID,
+                [Parameter(Mandatory = $false)] [string]$ClientSecret
+                
+            )
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
 			$body = @{
 				"client_id"     = $ClientId
@@ -434,8 +432,6 @@ function Invoke-FindDynamicGroups {
 			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
 		}
 
-
-    
 		$authMethod = ""
 			if ($RefreshToken) {
 				$authMethod = "refresh"
@@ -449,7 +445,7 @@ function Invoke-FindDynamicGroups {
 					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
 					$RefreshToken = Get-DeviceCodeToken
 					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-					Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+					Write-Host "[SAVE] refresh token writen to C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
 			}
 
@@ -521,19 +517,14 @@ function Invoke-FindDynamicGroups {
 				if ($membershipRule -ne $null) {
 				
 					Write-Host "[+] $groupName ($groupId) is Dynamic" -ForegroundColor DarkGreen
-					#Write-Host "[$groupName] => $membershipRule" -ForegroundColor DarkCyan
 
 					$conditions = @()
 					if ($membershipRule -match '\buser\.mail\b') { $conditions += "mail" }
 					if ($membershipRule -match '\buser\.userPrincipalName\b') { $conditions += "userPrincipalName" }
 					if ($membershipRule -match '\buser\.displayName\b') { $conditions += "displayName" }
 
-
-					#$outputLine = ""
-					if ($conditions.Count -gt 0) {
-						
+					if ($conditions.Count -gt 0) {						
 						  if ($membershipRule -match "@") {
-
 							continue  
 						}
 						$joined = ($conditions -join " AND ")
@@ -541,12 +532,10 @@ function Invoke-FindDynamicGroups {
 						Write-Host "      [$groupName] => $membershipRule" -ForegroundColor DarkCyan
 						$outputLine = "      [Sensitive Rule] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $joined : $membershipRule"
 					} else {
-						#$outputLine = "No interesting.."
+
 					}
-
-
 					
-					try {
+			        try {
 						Add-Content -Path "Dynamic_Groups.txt" -Value $outputLine
 					} catch {
 						Write-Host "[!] Failed to write to file: $_" -ForegroundColor Red
@@ -580,107 +569,219 @@ function Invoke-FindDynamicGroups {
 
 
 
+
 function Invoke-FindPublicGroups {
+
+		<#
+
+		Invoke-FindPublicGroup -DomainName shakudw.local -RefreshToken -DomainName <domain.local>
+		Invoke-FindPublicGroup -DomainName shakudw.local -DeviceCodeFlow -DomainName <domain.local>
+		Invoke-FindPublicGroup -DomainName shakudw.local -ClientId -ClientSecret -DomainName <domain.local>		
+		#>
+
     param (
-        [Parameter(Mandatory = $false)]
-        [string]$RefreshToken,
-
-        [Parameter(Mandatory = $false)]
-        [switch]$DeviceCodeFlow,
-
-        [Parameter(Mandatory = $false)]
-        [string]$ClientId,
-	
-        [Parameter(Mandatory = $false)]
-        [string]$DomainName,
-	
-        [Parameter(Mandatory = $false)]
-        [string]$SecretId,
-		
-        [Parameter(Mandatory = $false)]
-        [switch]$Deap		
+        [Parameter(Mandatory = $false)] [string]$RefreshToken,
+        [Parameter(Mandatory = $false)] [switch]$DeviceCodeFlow,
+        [Parameter(Mandatory = $false)] [string]$ClientId,
+        [Parameter(Mandatory = $false)] [string]$DomainName,
+        [Parameter(Mandatory = $false)] [string]$SecretId,
+        [Parameter(Mandatory = $false)] [switch]$Deap		
     )
 	
 	function Get-DomainName {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$DomainName
-    )
-    try {
-        $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-        $TenantID = ($response.issuer -split "/")[3]
-        Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-        return $TenantID
-    } catch {
-        Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-        return $null
-    }
-}
+        param (
+            [Parameter(Mandatory = $true)] [string]$DomainName
+        )
+            try {
+                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+                $TenantID = ($response.issuer -split "/")[3]
+                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+                return $TenantID
+            } catch {
+                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+            return $null
+            }
+    }   
 	
     function Example {
-        Write-Host "`nHey F*ckers" -ForegroundColor DarkYellow
-        Write-Host "Usage:" -ForegroundColor DarkYellow
-        Write-Host "------------" -ForegroundColor DarkYellow
-        Write-Host "Invoke-FindPublicGroups -DeviceCodeFlow" -ForegroundColor DarkCyan
-        Write-Host "Invoke-FindPublicGroups -RefreshToken <Refresh_Token>" -ForegroundColor DarkCyan
-        Write-Host "Invoke-FindPublicGroups -ClientId <Application_ClientID> -SecretId <Application_SecretID>" -ForegroundColor DarkCyan
+            Write-Host "Invoke-FindPublicGroups:" -ForegroundColor DarkYellow
+            Write-Host "------------" -ForegroundColor DarkYellow
+            Write-Host "Invoke-FindPublicGroups -DeviceCodeFlow -DomainName <domain.local>" -ForegroundColor DarkCyan
+            Write-Host "Invoke-FindPublicGroups -RefreshToken <Refresh_Token> -DomainName <domain.local>" -ForegroundColor DarkCyan
+            Write-Host "Invoke-FindPublicGroups -ClientId <Application_ClientID> -SecretId <Application_SecretID> -DomainName <domain.local>" -ForegroundColor DarkCyan
     }
 
-    if (-not $RefreshToken -and -not $ClientId -and -not $SecretId -and -not $DeviceCodeFlow) {
+    if (-not $RefreshToken -and -not $ClientId -and -not $SecretId -and -not $DeviceCodeFlow -and -not $Deap -and -not $DomainName) {
         Example
         return
     }
 
-    function Get-DeviceCodeToken {
-        $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-        $headers = @{ 'User-Agent' = 'Mozilla/5.0' }
-        $body = @{
-            "client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            "scope"     = "https://graph.microsoft.com/.default"
-        }
-        $authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
-        $code = $authResponse.user_code
-        $deviceCode = $authResponse.device_code
-        Write-Host "`n[*] Open browser and enter code:" -ForegroundColor DarkCyan -NoNewline
-        Write-Host " $code" -ForegroundColor DarkYellow
-        Start-Sleep -Seconds 5
-        Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
+    
 
-        $tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
-        $tokenBody = @{
-            "scope"      = "openid"
-            "client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            "grant_type" = "urn:ietf:params:oauth:grant-type:device_code"
-            "code"       = $deviceCode
-        }
+   function Get-DeviceCodeToken {
+			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
+            $UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+			$headers = @{ 'User-Agent' = $UserAgent }
+			$body = @{
+				"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"Resource"     = "https://graph.microsoft.com"
+			}
 
-        while ($true) {
-            try {
-                $tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop
-                return $tokenResponse.refresh_token
-            } catch {
-                $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
-                if ($errorResponse.error -eq "authorization_pending") {
-                    Start-Sleep -Seconds 5
-                } elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
-                    return $null
-                } else {
-                    return $null
+			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
+			$code = $authResponse.user_code
+			$deviceCode = $authResponse.device_code
+		    Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
+			Write-Host " $code" -ForegroundColor DarkYellow
+			Start-Sleep -Seconds 5
+			Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
+
+			$tokenUrl = "https://login.microsoftonline.com/$TenantID/oauth2/token?api-version=1.0"
+			$tokenBody = @{
+				"scope"      = "openid"
+				"client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"grant_type" = "urn:ietf:params:oauth:grant-type:device_code"
+				"code"       = $deviceCode
+			}
+
+			while ($true) {
+				try {
+					$tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop
+					return $tokenResponse.refresh_token
+				} catch {
+					$errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
+					if ($errorResponse.error -eq "authorization_pending") {
+						Start-Sleep -Seconds 5
+					} elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
+						return $null
+					} else {
+						return $null
+					}
+				}
+			}
+   }
+
+   
+       	if (-not $TenantID -and $DomainName) {
+    $TenantID = Get-DomainName -DomainName $DomainName
+    if (-not $TenantID) {
+        Write-Error "[-] Cannot continue without Tenant ID."
+        return
+    }
+}
+
+		function Get-Token-WithRefreshToken {
+            param(
+                [Parameter(Mandatory = $false)] [string]$RefreshToken
+            )
+
+			    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			    $body = @{
+                    "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                    "scope"         = "https://graph.microsoft.com/.default"
+                    "grant_type"    = "refresh_token"
+                    "refresh_token" = $RefreshToken
+			    }
+			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+
+		function Get-Token-WithClientSecret {
+            param(
+                [Parameter(Mandatory = $false)] [string]$ClientID,
+                [Parameter(Mandatory = $false)] [string]$ClientSecret
+                
+            )
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+
+    
+		$authMethod = ""
+			if ($RefreshToken) {
+				$authMethod = "refresh"
+				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+			} elseif ($ClientId -and $ClientSecret) {
+				$authMethod = "client"
+				$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
+			} elseif ($DeviceCodeFlow) {
+				$authMethod = "refresh"
+				if (Test-Path "C:\Users\Public\RefreshToken.txt"){
+					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
+					$RefreshToken = Get-DeviceCodeToken
+					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
+					Write-Host "[SAVE] refresh token writen to C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+			}
+
+
+	    if (-not $GraphAccessToken) { return }
+
+            if (Test-Path "Public_Groups.txt") {
+                $choice = Read-Host "Public_Groups.txt exists. (D)elete / (A)ppend?"
+                if ($choice -match "^[dD]$") {
+                    Remove-Item -Path "Public_Groups.txt" -Force
+                } elseif ($choice -notmatch "^[aA]$") {
+                    return
                 }
             }
-        }
+
+
+    	 function Invoke-With-Retry {
+            param (
+                [string]$Url,
+                [hashtable]$Headers
+            )
+            $success = $false
+            $response = $null
+            do {
+                try {
+                    $response = Invoke-RestMethod -Uri $Url -Headers $Headers -ErrorAction Stop
+                    $success = $true
+                } catch {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    if ($statusCode -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 7 }
+                        Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds ([int]$retryAfter)
+                    } else {
+                        Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
+                        return $null
+                    }
+                }
+            } while (-not $success)
+            return $response
     }
+
 	
-	function Invoke-With-Retry {
+    function Get-SensitiveConversations {
+    param (
+        [string]$GroupId,
+        [string]$GroupName,
+        [string]$AccessToken
+    )
+
+    if (-not (Test-Path "Conversations")) {
+        New-Item -ItemType Directory -Path "Conversations" | Out-Null
+    }
+
+    $headers = @{ Authorization = "Bearer $AccessToken" }
+    $keywords = @("admin", "accesstoken", "refreshtoken", "token", "password", "secret")
+
+    function Invoke-With-Retry {
         param (
-            [string]$Url,
-            [hashtable]$Headers
+            [string]$Url
         )
         $success = $false
         $response = $null
         do {
             try {
-                $response = Invoke-RestMethod -Uri $Url -Headers $Headers -ErrorAction Stop
+                $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
                 $success = $true
             } catch {
                 $statusCode = $_.Exception.Response.StatusCode.value__
@@ -697,89 +798,49 @@ function Invoke-FindPublicGroups {
         } while (-not $success)
         return $response
     }
-	
-    function Get-SensitiveConversations {
-        param (
-            [string]$GroupId,
-            [string]$GroupName,
-            [string]$AccessToken
-        )
 
-        if (-not (Test-Path "Conversations")) {
-            New-Item -ItemType Directory -Path "Conversations" | Out-Null
-        }
+    $convos = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations"
+    if (-not $convos) { return }
 
-        $headers = @{ Authorization = "Bearer $AccessToken" }
-        $keywords = @("admin", "accesstoken", "refreshtoken", "token", "password", "secret")
+    foreach ($convo in $convos.value) {
+        $threads = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads"
+        if (-not $threads) { continue }
 
-        function Invoke-With-Retry {
-            param (
-                [string]$Url
-            )
-            $success = $false
-            $response = $null
-            do {
-                try {
-                    $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
-                    $success = $true
-                } catch {
-                    $statusCode = $_.Exception.Response.StatusCode.value__
-                    if ($statusCode -eq 429) {
-                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
-                        if (-not $retryAfter) { $retryAfter = 7 }
-                        Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
-                        Start-Sleep -Seconds ([int]$retryAfter)
-                    } else {
-                        Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
-                        return $null
-                    }
-                }
-            } while (-not $success)
-            return $response
-        }
+        foreach ($thread in $threads.value) {
+            $posts = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads/$($thread.id)/posts"
+            if (-not $posts) { continue }
 
-        $convos = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations"
-        if (-not $convos) { return }
+            foreach ($post in $posts.value) {
+                $rawHtml = $post.body.content
+                $rawName = "$GroupId-$($convo.id)-$($thread.id)"
+				$cleanName = ($rawName -replace '[^a-zA-Z0-9_-]', '')
+				$fileName = "$cleanName.html"
+                $filePath = "Conversations\$fileName"
+                $rawHtml | Out-File -FilePath $filePath -Encoding utf8
 
-        foreach ($convo in $convos.value) {
-            $threads = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads"
-            if (-not $threads) { continue }
+                # Convert HTML to plain text (basic strip)
+                Add-Type -AssemblyName System.Web
+                $decoded = [System.Web.HttpUtility]::HtmlDecode($rawHtml)
+                $plainText = ($decoded -replace '<[^>]+>', '') -replace '\s{2,}', ' '
 
-            foreach ($thread in $threads.value) {
-                $posts = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads/$($thread.id)/posts"
-                if (-not $posts) { continue }
+                foreach ($kw in $keywords) {
+                    if ($plainText -match "(?i)\b$kw\b.{0,200}") {
+                        $matchLine = $matches[0]
+                        Write-Host "[!!!] Suspicious content found in group '$GroupName': $kw" -ForegroundColor Red
+                        Write-Host "`t--> $matchLine" -ForegroundColor Gray
 
-                foreach ($post in $posts.value) {
-                    $rawHtml = $post.body.content
-                    $rawName = "$GroupId-$($convo.id)-$($thread.id)"
-                    $cleanName = ($rawName -replace '[^a-zA-Z0-9_-]', '')
-                    $fileName = "$cleanName.html"
-                    $filePath = "Conversations\$fileName"
-                    $rawHtml | Out-File -FilePath $filePath -Encoding utf8
-
-                    # Convert HTML to plain text (basic strip)
-                    Add-Type -AssemblyName System.Web
-                    $decoded = [System.Web.HttpUtility]::HtmlDecode($rawHtml)
-                    $plainText = ($decoded -replace '<[^>]+>', '') -replace '\s{2,}', ' '
-
-                    foreach ($kw in $keywords) {
-                        if ($plainText -match "(?i)\b$kw\b.{0,200}") {
-                            $matchLine = $matches[0]
-                            Write-Host "[!!!] Suspicious content found in group '$GroupName': $kw" -ForegroundColor Red
-                            Write-Host "`t--> $matchLine" -ForegroundColor Gray
-
-                            Add-Content -Path "Public_Groups.txt" -Value "[DEAP] $GroupName ($GroupId) | keyword: $kw"
-                            Add-Content -Path "Public_Groups.txt" -Value "`t--> $matchLine"
-                            Add-Content -Path "Public_Groups.txt" -Value "`t--> Saved full HTML: Conversations\$fileName"
-                            break
-                        }
+                        Add-Content -Path "Public_Groups.txt" -Value "[DEAP] $GroupName ($GroupId) | keyword: $kw"
+                        Add-Content -Path "Public_Groups.txt" -Value "`t--> $matchLine"
+                        Add-Content -Path "Public_Groups.txt" -Value "`t--> Saved full HTML: Conversations\$fileName"
+                        break
                     }
                 }
             }
         }
     }
+}
 	
-	function Get-GroupsWithDirectoryRoles {
+		function Get-GroupsWithDirectoryRoles {
         param ($AccessToken)
 
         $headers = @{ Authorization = "Bearer $AccessToken" }
@@ -808,66 +869,7 @@ function Invoke-FindPublicGroups {
         return $GroupIdsWithRoles
     }
 
-	if (-not $TenantID -and $DomainName) {
-    $TenantID = Get-DomainName -DomainName $DomainName
-    if (-not $TenantID) {
-        Write-Error "[-] Cannot continue without Tenant ID."
-        return
-    }
-}
 
-    function Get-Token-WithRefreshToken {
-        param ([string]$RefreshToken)
-        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-        $body = @{
-            "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            "scope"         = "https://graph.microsoft.com/.default"
-            "grant_type"    = "refresh_token"
-            "refresh_token" = $RefreshToken
-        }
-        return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
-    }
-
-    function Get-Token-WithClientSecret {
-        param ([string]$ClientId, [string]$SecretId)
-        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-        $body = @{
-            "client_id"     = $ClientId
-            "client_secret" = $SecretId
-            "scope"         = "https://graph.microsoft.com/.default"
-            "grant_type"    = "client_credentials"
-        }
-        return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
-    }
-
-    
-    $authMethod = ""
-    if ($RefreshToken) {
-        $authMethod = "refresh"
-        $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
-    } elseif ($ClientId -and $SecretId) {
-        $authMethod = "client"
-        $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
-    } elseif ($DeviceCodeFlow) {
-	$authMethod = "refresh"
-         if (Test-Path "C:\Users\Public\RefreshToken.txt"){
-             Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
-	$RefreshToken = Get-DeviceCodeToken
-	Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-	Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
-        $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
-    }
-
-    if (-not $GraphAccessToken) { return }
-
-    if (Test-Path "Public_Groups.txt") {
-        $choice = Read-Host "Public_Groups.txt exists. (D)elete / (A)ppend?"
-        if ($choice -match "^[dD]$") {
-            Remove-Item -Path "Public_Groups.txt" -Force
-        } elseif ($choice -notmatch "^[aA]$") {
-            return
-        }
-    }
 
     $headers = @{
         "Authorization"    = "Bearer $GraphAccessToken"
@@ -876,10 +878,8 @@ function Invoke-FindPublicGroups {
         "Prefer"           = "odata.maxpagesize=999"
     }
 	
-	
-	
 
-    $startTime = Get-Date
+   $startTime = Get-Date
     $refreshIntervalMinutes = 7
     $groupApiUrl = "https://graph.microsoft.com/v1.0/groups?$filter=groupTypes/any(c:c eq 'Unified')&$select=id,displayName,visibility&$top=999"
 
@@ -1015,6 +1015,7 @@ function Invoke-FindPublicGroups {
 
     Write-Host "`n[*] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
 }
+
 
 
 
