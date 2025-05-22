@@ -585,7 +585,7 @@ function Invoke-FindPublicGroups {
         [Parameter(Mandatory = $false)] [string]$ClientId,
         [Parameter(Mandatory = $false)] [string]$DomainName,
         [Parameter(Mandatory = $false)] [string]$SecretId,
-        [Parameter(Mandatory = $false)] [switch]$Deap		
+        [Parameter(Mandatory = $false)] [switch]$Deep		
     )
 	
 	function Get-DomainName {
@@ -813,10 +813,12 @@ function Invoke-FindPublicGroups {
             foreach ($post in $posts.value) {
                 $rawHtml = $post.body.content
                 $rawName = "$GroupId-$($convo.id)-$($thread.id)"
-				$cleanName = ($rawName -replace '[^a-zA-Z0-9_-]', '')
+				$cleanName = ($rawName -replace '[^\w\-]', '') 
+                if ($cleanName.Length -gt 100) {
+                    $cleanName = $cleanName.Substring(0, 100)
+                }
 				$fileName = "$cleanName.html"
-                $filePath = "Conversations\$fileName"
-                $rawHtml | Out-File -FilePath $filePath -Encoding utf8
+                $filePath = Join-Path -Path "Conversations" -ChildPath $fileName
 
                 # Convert HTML to plain text (basic strip)
                 Add-Type -AssemblyName System.Web
@@ -888,37 +890,38 @@ function Invoke-FindPublicGroups {
     Write-Host "`n[*] Fetching Public Groups..." -ForegroundColor DarkCyan
 	
 	
+       
+            $GroupIdToRoleMap = @{}
+            $success1 = $false
+            do {
+                try {
+                    Write-Host "[*] Fetching directory role assignments..." -ForegroundColor DarkCyan
+                    $GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+                    $success1 = $true
+                } catch {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    if ($statusCode -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 7 }
+                        Write-Host "[!] Rate limit hit during role mapping. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
+                        Start-Sleep -Seconds ([int]$retryAfter)
+                    } elseif ($statusCode -eq 401) {
+                        Write-Host "[!] Token expired while retrieving roles, refreshing token..." -ForegroundColor Yellow
+                        if ($authMethod -eq "refresh") {
+                            $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+                        } elseif ($authMethod -eq "client") {
+                            $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
+                        }
+                        if (-not $GraphAccessToken) { return }
+                        $headers["Authorization"] = "Bearer $GraphAccessToken"
+                    } else {
+                        Write-Host "[-] Unhandled error during role mapping. Exiting." -ForegroundColor Red
+                        return
+                    }
+                }
+            } while (-not $success1)
 
-		$GroupIdToRoleMap = @{}
-		$success1 = $false
-		do {
-			try {
-				Write-Host "[*] Fetching directory role assignments..." -ForegroundColor DarkCyan
-				$GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
-				$success1 = $true
-			} catch {
-				$statusCode = $_.Exception.Response.StatusCode.value__
-				if ($statusCode -eq 429) {
-					$retryAfter = $_.Exception.Response.Headers["Retry-After"]
-					if (-not $retryAfter) { $retryAfter = 7 }
-					Write-Host "[!] Rate limit hit during role mapping. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
-					Start-Sleep -Seconds ([int]$retryAfter)
-				} elseif ($statusCode -eq 401) {
-					Write-Host "[!] Token expired while retrieving roles, refreshing token..." -ForegroundColor Yellow
-					if ($authMethod -eq "refresh") {
-						$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
-					} elseif ($authMethod -eq "client") {
-						$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
-					}
-					if (-not $GraphAccessToken) { return }
-					$headers["Authorization"] = "Bearer $GraphAccessToken"
-				} else {
-					Write-Host "[-] Unhandled error during role mapping. Exiting." -ForegroundColor Red
-					return
-				}
-			}
-		} while (-not $success1)
-
+        
 	
 	
 	
@@ -977,7 +980,7 @@ function Invoke-FindPublicGroups {
                     Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
                     "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
                 }
-				if ($Deap) {
+				if ($Deep) {
 					Get-SensitiveConversations -GroupId $groupId -GroupName $groupName -AccessToken $GraphAccessToken
 				}
 
