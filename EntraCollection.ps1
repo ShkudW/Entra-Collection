@@ -1155,203 +1155,284 @@ function Invoke-FindServicePrincipal {
 
 
 function Invoke-FindUserRole {
+<#
+
+Enumerate all UPN in Tenant, and what directory role have to each one
+
+Invoke-FindUserRole -RefreshToken <Refresh Token> -DomainName <domain.local>
+
+
+
+#>
+
     param(
-        [Parameter(Mandatory = $true)] [string]$AccessToken
+        [Parameter(Mandatory = $true)] [string]$RefreshToken,
+        [Parameter(Mandatory = $true)] [string]$DomainName
+
     )
 
-    $headers = @{
-        Authorization = "Bearer $AccessToken"
-        "Content-Type" = "application/json"
-    }
-
-    $allUsers = @()
-    $uri = "https://graph.microsoft.com/v1.0/users"
-
-    Write-Host "[*] Fetching users..." -ForegroundColor Cyan
-
-    # Fetch all users with paging
-    while ($uri) {
-        try {
-            $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
-            $allUsers += $response.value
-            $uri = $response.'@odata.nextLink'
-        } catch {
-           if ($_.Exception.Response.StatusCode.value__ -eq 429) {
-                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
-                    if (-not $retryAfter) { $retryAfter = 10 }
-                    Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
-                    Start-Sleep -Seconds $retryAfter
-		   }
-		   
+    	function Get-DomainName {
+            try {
+                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+                $TenantID = ($response.issuer -split "/")[3]
+                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+                 return $TenantID
+            } catch {
+                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+                return $null
+             }
         }
-    }
+
+        function Get-Token-WithRefreshToken {
+                param(
+                    [Parameter(Mandatory = $false)] [string]$RefreshToken,
+                    [Parameter(Mandatory = $false)] [string]$TenantID
+                )
+
+                    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+                    $body = @{
+                        "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                        "scope"         = "https://graph.microsoft.com/.default"
+                        "grant_type"    = "refresh_token"
+                        "refresh_token" = $RefreshToken
+                    }
+                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+            }
+
+       	if ($DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
+
+        if($RefreshToken) {
+            $AccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+        }
+
+
+        $headers = @{
+            Authorization = "Bearer $AccessToken"
+            "Content-Type" = "application/json"
+        }
+
+        $allUsers = @()
+        $uri = "https://graph.microsoft.com/v1.0/users"
+
+        Write-Host "[*] Fetching users..." -ForegroundColor Cyan
+
+        # Fetch all users with paging
+        while ($uri) {
+            try {
+                $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+                $allUsers += $response.value
+                $uri = $response.'@odata.nextLink'
+            } catch {
+                if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 10 }
+                        Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
+                        Start-Sleep -Seconds $retryAfter
+                }
+            
+            }
+        }
 
 		Write-Host "[*] Total users fetched: $($allUsers.Count)" -ForegroundColor Cyan
 
 		$usersWithRoles = @()
 
-    foreach ($user in $allUsers) {
-        $id = $user.id
-        $upn = $user.userPrincipalName
+        foreach ($user in $allUsers) {
+            $id = $user.id
+            $upn = $user.userPrincipalName
 
-        Write-Host "`n[*] Checking roles for: $upn ($id)" -ForegroundColor Cyan
+            Write-Host "`n[*] Checking roles for: $upn ($id)" -ForegroundColor Cyan
 
-        $roleUri = "https://graph.microsoft.com/v1.0/users/$id/transitiveMemberOf/microsoft.graph.directoryRole"
+            $roleUri = "https://graph.microsoft.com/v1.0/users/$id/transitiveMemberOf/microsoft.graph.directoryRole"
 
-        while ($true) {
-            try {
-                $roleResponse = Invoke-RestMethod -Uri $roleUri -Headers $headers -Method Get
-                $roles = $roleResponse.value
+            while ($true) {
+                try {
+                    $roleResponse = Invoke-RestMethod -Uri $roleUri -Headers $headers -Method Get
+                    $roles = $roleResponse.value
 
-                if ($roles.Count -eq 0) {
+                    if ($roles.Count -eq 0) {
+                        break
+                    }
+
+                    Write-Host "[+] $upn ($id) has the following roles:" -ForegroundColor Green
+                    $roleNames = @()
+                    foreach ($role in $roles) {
+                        $roleNames += $role.displayName
+                        Write-Host "    -> $($role.displayName)" -ForegroundColor Yellow
+                    }
+
+                    # Add to summary list
+                    $usersWithRoles += [PSCustomObject]@{
+                        UPN       = $upn
+                        ObjectId  = $id
+                        Roles     = ($roleNames -join ", ")
+                    }
                     break
-                }
-
-                Write-Host "[+] $upn ($id) has the following roles:" -ForegroundColor Green
-                $roleNames = @()
-                foreach ($role in $roles) {
-                    $roleNames += $role.displayName
-                    Write-Host "    -> $($role.displayName)" -ForegroundColor Yellow
-                }
-
-                # Add to summary list
-                $usersWithRoles += [PSCustomObject]@{
-                    UPN       = $upn
-                    ObjectId  = $id
-                    Roles     = ($roleNames -join ", ")
-                }
-                break
-            } catch {
-                if ($_.Exception.Response.StatusCode.value__ -eq 429) {
-                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
-                    if (-not $retryAfter) { $retryAfter = 10 }
-                    Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
-                    Start-Sleep -Seconds $retryAfter
-                } else {
-                    Write-Host "[-] Failed to fetch roles for $upn ($id): $_" -ForegroundColor Red
-                    break
+                } catch {
+                    if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 10 }
+                        Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
+                        Start-Sleep -Seconds $retryAfter
+                    } else {
+                        Write-Host "[-] Failed to fetch roles for $upn ($id): $_" -ForegroundColor Red
+                        break
+                    }
                 }
             }
         }
-    }
 
     # === Summary Output ===
-    if ($usersWithRoles.Count -gt 0) {
-        Write-Host "`n==========================" -ForegroundColor Cyan
-        Write-Host "Users with Roles Found:" -ForegroundColor Cyan
-        Write-Host "==========================" -ForegroundColor Cyan
-        foreach ($user in $usersWithRoles) {
-            Write-Host "`nUPN: $($user.UPN)" -ForegroundColor Green
-            Write-Host "ObjectId: $($user.ObjectId)" -ForegroundColor DarkCyan
-            Write-Host "Roles: $($user.Roles)" -ForegroundColor Yellow
+        if ($usersWithRoles.Count -gt 0) {
+            Write-Host "`n==========================" -ForegroundColor Cyan
+            Write-Host "Users with Roles Found:" -ForegroundColor Cyan
+            Write-Host "==========================" -ForegroundColor Cyan
+            foreach ($user in $usersWithRoles) {
+                Write-Host "`nUPN: $($user.UPN)" -ForegroundColor Green
+                Write-Host "ObjectId: $($user.ObjectId)" -ForegroundColor DarkCyan
+                Write-Host "Roles: $($user.Roles)" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "`n[!] No users with roles found." -ForegroundColor DarkGray
         }
-    } else {
-        Write-Host "`n[!] No users with roles found." -ForegroundColor DarkGray
-    }
 }
 
 
-function Invoke-Findupn {
+
+
+<######################################################################################################################################################>
+
+
+function Invoke-FindUserByWord {
+
+<#
+
+Find a user account by searching spesicip word
+
+Invoke-FindUserByWord -RefreshToken <Refresh Token> -DomainName <domain.local> -Word admin
+
+#>
+
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$RefreshToken,
-		
-		[Parameter(Mandatory = $true)]
-        [string]$TenantID,
-		
-		[Parameter(Mandatory = $true)]
-        [string]$Word
+        [Parameter(Mandatory = $true)] [string]$RefreshToken,
+		[Parameter(Mandatory = $true)] [string]$DomainName,
+		[Parameter(Mandatory = $true)] [string]$Word
     )
 
-	$OutputFile = "FoundUsers.txt"
-	if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
+	    $OutputFile = "FoundUsers.txt"
+	    if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
+
+
+    	function Get-DomainName {
+            try {
+                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+                $TenantID = ($response.issuer -split "/")[3]
+                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+                 return $TenantID
+            } catch {
+                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+                return $null
+             }
+        }
+
+
+        function Get-Token-WithRefreshToken {
+                param(
+                    [Parameter(Mandatory = $false)] [string]$RefreshToken,
+                    [Parameter(Mandatory = $false)] [string]$TenantID
+                )
+
+                    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+                    $body = @{
+                        "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                        "scope"         = "https://graph.microsoft.com/.default"
+                        "grant_type"    = "refresh_token"
+                        "refresh_token" = $RefreshToken
+                    }
+                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+            }
+
+       	if ($DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
+
+        if($RefreshToken) {
+            $AccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+        }
     
-    $ClientId = "d3590ed6-52b3-4102-aeff-aad2292ab01c"  # Microsoft Office
-    $Scope    = "https://graph.microsoft.com/.default"
 
-    function Get-AccessTokenFromRefresh {
-        $TokenUrl = "https://login.microsoftonline.com/$TenantId/oauth2/v2.0/token"
-        $Body = @{
-            client_id     = $ClientId
-            scope         = $Scope
-            grant_type    = "refresh_token"
-            refresh_token = $RefreshToken
-        }
-        try {
-            $Response = Invoke-RestMethod -Method Post -Uri $TokenUrl -Body $Body -ContentType "application/x-www-form-urlencoded"
-            return $Response.access_token
-        } catch {
-            Write-Error "[-] Failed to get access token from refresh token: $_"
-            return $null
-        }
-    }
+        $TokenStartTime = Get-Date
+        $UsersUrl = "https://graph.microsoft.com/v1.0/users"
+        $BeesUsers = @()
 
-    $AccessToken = Get-AccessTokenFromRefresh
-    if (-not $AccessToken) { return }
-
-    $TokenStartTime = Get-Date
-    $UsersUrl = "https://graph.microsoft.com/v1.0/users"
-    $BeesUsers = @()
-
-    while ($UsersUrl) {
+        while ($UsersUrl) {
         
-        if ((New-TimeSpan -Start $TokenStartTime).TotalMinutes -ge 7) {
-            Write-Host "[*] Refreshing Access Token..." -ForegroundColor Cyan
-            $AccessToken = Get-AccessTokenFromRefresh
-            if (-not $AccessToken) { break }
-            $TokenStartTime = Get-Date
-        }
-
-        $Headers = @{
-            "Authorization" = "Bearer $AccessToken"
-            "Content-Type"  = "application/json"
-        }
-
-        try {
-            $Response = Invoke-RestMethod -Method Get -Uri $UsersUrl -Headers $Headers -ErrorAction Stop
-
-            foreach ($User in $Response.value) {
-                if (
-                    ($User.displayName -like "*$Word*" -or
-                     $User.mail -like "*$Word*" -or
-                     $User.userPrincipalName -like "*$Word*" -or
-                     $User.givenName -like "*$Word*" -or
-                     $User.surname -like "*$Word*")
-                ) {
-					$BeesUsers += $User
-				    $Line = "$($User.displayName) | $($User.userPrincipalName)"
-					Add-Content -Path $OutputFile -Value $Line
-						
-                 
-					Write-Host ""
-					Write-Host "[+] Found: " -NoNewline
-					Write-Host "$($User.displayName)" -ForegroundColor Green -NoNewline
-					Write-Host " | $($User.userPrincipalName)" -ForegroundColor DarkGray
-
-                }
+            if ((New-TimeSpan -Start $TokenStartTime).TotalMinutes -ge 7) {
+                Write-Host "[*] Refreshing Access Token..." -ForegroundColor Cyan
+                $AccessToken = Get-AccessTokenFromRefresh
+                if (-not $AccessToken) { break }
+                $TokenStartTime = Get-Date
             }
 
-            $UsersUrl = $Response.'@odata.nextLink'
-        } catch {
-            if ($_.Exception.Response.StatusCode.value__ -eq 429) {
-                $retryAfter = $_.Exception.Response.Headers["Retry-After"]
-                if ($retryAfter) {
-                    Write-Host "[!] Rate limit hit. Retrying after $retryAfter seconds..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds ([int]$retryAfter)
-                } else {
-                    Write-Host "[!] Rate limit hit. Retrying after default 60 seconds..." -ForegroundColor Yellow
-                    Start-Sleep -Seconds 60
-                }
-            } else {
-                Write-Warning "Failed to retrieve users: $_"
-                break
+            $Headers = @{
+                "Authorization" = "Bearer $AccessToken"
+                "Content-Type"  = "application/json"
             }
+
+            try {
+                $Response = Invoke-RestMethod -Method Get -Uri $UsersUrl -Headers $Headers -ErrorAction Stop
+
+                foreach ($User in $Response.value) {
+                    if (
+                        ($User.displayName -like "*$Word*" -or
+                        $User.mail -like "*$Word*" -or
+                        $User.userPrincipalName -like "*$Word*" -or
+                        $User.givenName -like "*$Word*" -or
+                        $User.surname -like "*$Word*")
+                    ) {
+					    $BeesUsers += $User
+                        $Line = "$($User.displayName) | $($User.userPrincipalName)"
+                        Add-Content -Path $OutputFile -Value $Line
+                        Write-Host ""
+                        Write-Host "[+] Found: " -NoNewline
+                        Write-Host "$($User.displayName)" -ForegroundColor Green -NoNewline
+                        Write-Host " | $($User.userPrincipalName)" -ForegroundColor DarkGray
+                    }
+                }
+
+                $UsersUrl = $Response.'@odata.nextLink'
+            } catch {
+                    if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if ($retryAfter) {
+                            Write-Host "[!] Rate limit hit. Retrying after $retryAfter seconds..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds ([int]$retryAfter)
+                        } else {
+                            Write-Host "[!] Rate limit hit. Retrying after default 60 seconds..." -ForegroundColor Yellow
+                            Start-Sleep -Seconds 60
+                        }
+                    } else {
+                        Write-Warning "Failed to retrieve users: $_"
+                        break
+                    }
+                }
         }
-    }
 
     return $BeesUsers
 }
 
+
+<######################################################################################################################################################>
 
 function Invoke-GroupMappingFromJWT {
     param (
