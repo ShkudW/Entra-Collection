@@ -1697,7 +1697,6 @@ For adding yourself or others to group or list of groups
                     }
                     elseif ($StatusCode -eq 400 -and $Action -eq "add" -and $ErrorMessage -match "already exist") {
                         Write-Host "[=] Member already exists in ${GroupId}." -ForegroundColor Yellow
-                        #Add-Content -Path $SuccessLogFile -Value $GroupId
                         $Success = $true
                     }
                     elseif ($StatusCode -eq 400 -and $Action -eq "delete") {
@@ -1715,102 +1714,102 @@ For adding yourself or others to group or list of groups
 }
 
 
+<######################################################################################################################################################>
+
 function Invoke-ResourcePermissions {
     param(
         [string]$RefreshToken,
         [string]$ClientId,
         [string]$ClientSecret,
-	[string]$TenantID,
+	    [string]$TenantID,
         [switch]$KeyVault,
         [switch]$StorageAccount,
         [switch]$VirtualMachine,
         [switch]$All
     )
 
-   	$KeyVaultPermissions = @{
-		"Microsoft.KeyVault/*"                      = "Wildcard"
-		"Microsoft.KeyVault/vaults/*"                = "Wildcard2"
-		"Microsoft.KeyVault/vaults/read"             = "Vault Read"
-		"Microsoft.KeyVault/vaults/write"            = "Vault Write"
-		"Microsoft.KeyVault/vaults/secrets/read"     = "Secrets Read"
-		"Microsoft.KeyVault/vaults/keys/read"        = "Keys Read"
-		"Microsoft.KeyVault/vaults/certificates/read"= "Certificates Read"
+   	    $KeyVaultPermissions = @{
+            "Microsoft.KeyVault/*"                          = "Wildcard"
+            "Microsoft.KeyVault/vaults/*"                   = "Wildcard2"
+            "Microsoft.KeyVault/vaults/read"                = "Vault Read"
+            "Microsoft.KeyVault/vaults/write"               = "Vault Write"
+            "Microsoft.KeyVault/vaults/secrets/read"        = "Secrets Read"
+            "Microsoft.KeyVault/vaults/keys/read"           = "Keys Read"
+            "Microsoft.KeyVault/vaults/certificates/read"   = "Certificates Read"
 		}
 
-    $VirtualMachinePermissions = @{
-        "Microsoft.Compute/virtualMachines/runCommand/action"     = "Run arbitrary commands inside the VM"
-        "Microsoft.Compute/virtualMachines/extensions/write"      = "Deploy or modify VM extensions"
-        "Microsoft.Compute/virtualMachines/start/action"          = "Start stopped VM"
-        "Microsoft.Compute/virtualMachines/restart/action"        = "Restart VM"
-        "Microsoft.Compute/virtualMachines/deallocate/action"     = "Stop VM (without deletion)"
-        "Microsoft.Compute/virtualMachines/delete"                = "Delete the VM"
-        "Microsoft.Compute/virtualMachines/capture/action"        = "Capture VM image (potential cloning)"
-        "Microsoft.Compute/virtualMachines/write"                 = "Modify VM configuration"
-        "Microsoft.Compute/virtualMachines/read"                  = "Read VM information and properties"
-		"Microsoft.Compute/virtualMachines/*"                     = "another2"
-    }
-
-    $StoragePermissions = @{
-        "Microsoft.Storage/storageAccounts/listkeys/action"                       = "List storage account access keys"
-        "Microsoft.Storage/storageAccounts/regeneratekey/action"                  = "Regenerate access keys"
-        "Microsoft.Storage/storageAccounts/blobServices/containers/read"          = "List blob containers"
-        "Microsoft.Storage/storageAccounts/blobServices/containers/write"         = "Create or update blob containers"
-        "Microsoft.Storage/storageAccounts/blobServices/containers/delete"        = "Delete blob containers"
-        "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"    = "Read blobs (file contents)"
-        "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write"   = "Upload or modify blobs"
-        "Microsoft.Storage/storageAccounts/fileServices/shares/read"              = "List file shares"
-        "Microsoft.Storage/storageAccounts/fileServices/shares/write"             = "Create or modify file shares"
-        "Microsoft.Storage/storageAccounts/fileServices/shares/delete"            = "Delete file shares"
-        "Microsoft.Storage/storageAccounts/read"                                  = "Read storage account configuration"
-        "Microsoft.Storage/storageAccounts/write"                                 = "Update storage account settings"
-        "Microsoft.Storage/storageAccounts/delete"                                = "Delete the entire storage account"
-		"Microsoft.Storage/storageAccounts/*"                                     = "another1"
-	
-		
-    }
-
-    $ResourceAccessPermissions = @{
-        "Microsoft.Authorization/roleAssignments/write"  = "Assign roles to users or identities (privilege escalation)"
-        "Microsoft.Authorization/elevateAccess/Action"   = "Elevate access to full subscription scope (for tenant admins)"
-        "Microsoft.Authorization/*/Write"                = "Wildcard write permission to authorization-related operations"
-        "Microsoft.Resources/subscriptions/write"        = "Modify subscription settings"
-        "Microsoft.Resources/deployments/write"          = "Deploy ARM templates (create any resource)"
-        "Microsoft.Support/*"                            = "Open support tickets (possible info leak)"
-        "Microsoft.Resources/tags/write"                 = "Modify resource tags (bypass tag-based policies)"
-        "Microsoft.PolicyInsights/*"                     = "Access or modify policy evaluation results"
-    }
-
-    #$TenantID = "...." # Edit Here!!!!
-    function Get-AccessToken {
-        if ($RefreshToken) {
-            
-            $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-            $body = @{ client_id = "d3590ed6-52b3-4102-aeff-aad2292ab01c"; scope = "https://management.azure.com/.default"; grant_type = "refresh_token"; refresh_token = $RefreshToken }
-            $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
-			Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
-			Write-Host ""
-            return $Tokens.access_token
-        } elseif ($ClientId -and $ClientSecret) {
-            $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-            $body = @{ client_id = $ClientId; client_secret = $ClientSecret; scope = "https://management.azure.com/.default"; grant_type = "client_credentials" }
-            $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
-			Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
-			Write-Host ""
-            return $Tokens.access_token
-        } else {
-            Write-Error "Must provide either -RefreshToken or -ClientId and -ClientSecret."
-            exit
+        $VirtualMachinePermissions = @{
+            "Microsoft.Compute/virtualMachines/runCommand/action"   = "Run arbitrary commands inside the VM"
+            "Microsoft.Compute/virtualMachines/extensions/write"    = "Deploy or modify VM extensions"
+            "Microsoft.Compute/virtualMachines/start/action"        = "Start stopped VM"
+            "Microsoft.Compute/virtualMachines/restart/action"      = "Restart VM"
+            "Microsoft.Compute/virtualMachines/deallocate/action"   = "Stop VM (without deletion)"
+            "Microsoft.Compute/virtualMachines/delete"              = "Delete the VM"
+            "Microsoft.Compute/virtualMachines/capture/action"      = "Capture VM image (potential cloning)"
+            "Microsoft.Compute/virtualMachines/write"               = "Modify VM configuration"
+            "Microsoft.Compute/virtualMachines/read"                = "Read VM information and properties"
+            "Microsoft.Compute/virtualMachines/*"                   = "another2"
         }
-    }
 
-    $ARMAccessToken = Get-AccessToken
-    $Headers = @{
-        'Authorization' = "Bearer $ARMAccessToken"
-        'User-Agent'    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+        $StoragePermissions = @{
+            "Microsoft.Storage/storageAccounts/listkeys/action"                     = "List storage account access keys"
+            "Microsoft.Storage/storageAccounts/regeneratekey/action"                = "Regenerate access keys"
+            "Microsoft.Storage/storageAccounts/blobServices/containers/read"        = "List blob containers"
+            "Microsoft.Storage/storageAccounts/blobServices/containers/write"       = "Create or update blob containers"
+            "Microsoft.Storage/storageAccounts/blobServices/containers/delete"      = "Delete blob containers"
+            "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"  = "Read blobs (file contents)"
+            "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write" = "Upload or modify blobs"
+            "Microsoft.Storage/storageAccounts/fileServices/shares/read"            = "List file shares"
+            "Microsoft.Storage/storageAccounts/fileServices/shares/write"           = "Create or modify file shares"
+            "Microsoft.Storage/storageAccounts/fileServices/shares/delete"          = "Delete file shares"
+            "Microsoft.Storage/storageAccounts/read"                                = "Read storage account configuration"
+            "Microsoft.Storage/storageAccounts/write"                               = "Update storage account settings"
+            "Microsoft.Storage/storageAccounts/delete"                              = "Delete the entire storage account"
+            "Microsoft.Storage/storageAccounts/*"                                   = "another1"
+        }
 
-	$SubUrl = "https://management.azure.com/subscriptions?api-version=2021-01-01"
-	$Subscriptions = @()
+
+        $ResourceAccessPermissions = @{
+            "Microsoft.Authorization/roleAssignments/write"  = "Assign roles to users or identities (privilege escalation)"
+            "Microsoft.Authorization/elevateAccess/Action"   = "Elevate access to full subscription scope (for tenant admins)"
+            "Microsoft.Authorization/*/Write"                = "Wildcard write permission to authorization-related operations"
+            "Microsoft.Resources/subscriptions/write"        = "Modify subscription settings"
+            "Microsoft.Resources/deployments/write"          = "Deploy ARM templates (create any resource)"
+            "Microsoft.Support/*"                            = "Open support tickets (possible info leak)"
+            "Microsoft.Resources/tags/write"                 = "Modify resource tags (bypass tag-based policies)"
+            "Microsoft.PolicyInsights/*"                     = "Access or modify policy evaluation results"
+        }
+
+   
+        function Get-AccessToken {
+            if ($RefreshToken) {
+                $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+                $body = @{ client_id = "d3590ed6-52b3-4102-aeff-aad2292ab01c"; scope = "https://management.azure.com/.default"; grant_type = "refresh_token"; refresh_token = $RefreshToken }
+                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+                Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
+                Write-Host ""
+                return $Tokens.access_token
+            } elseif ($ClientId -and $ClientSecret) {
+                $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+                $body = @{ client_id = $ClientId; client_secret = $ClientSecret; scope = "https://management.azure.com/.default"; grant_type = "client_credentials" }
+                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+                Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
+                Write-Host ""
+                return $Tokens.access_token
+            } else {
+                Write-Error "Must provide either -RefreshToken or -ClientId and -ClientSecret."
+                exit
+            }
+        }
+
+        $ARMAccessToken = Get-AccessToken
+        $Headers = @{
+            'Authorization' = "Bearer $ARMAccessToken"
+            'User-Agent'    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+
+        $SubUrl = "https://management.azure.com/subscriptions?api-version=2021-01-01"
+        $Subscriptions = @()
 
 		do {
 			try {
