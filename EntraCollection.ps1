@@ -1,27 +1,17 @@
-
 <#
 	Entra Colection => EntraCollection.ps1
-
+ 
         Author: Shaked Wiessman (ShkudW), offensive cyber security at Ab-inBev.com
-
-        
         This PowerShell Scripts Collection build for Penetration Testing on Entra ID Cloud!
-
         I Hope this will help you in your operation
-
-
 #>
 
-function Get-Tokens {
-	
-	<#
-		
-	Getting Access Token and Refreshtoken for Graph API or ARM API.
-    The Refresh Token will save in C:\Users\Public\Refreshtoken.txt -> modify it, if you want :)
-	Get-Tokens -DomainName domain.local -Graph | -ARM
-		
-	#>	
-
+function Get-Tokens {	
+<#	
+Getting Access Token and Refreshtoken for Graph API or ARM API.
+The Refresh Token will save in C:\Users\Public\Refreshtoken.txt -> modify it, if you want :)
+Get-Tokens -DomainName domain.local -Graph | -ARM
+#>	
 	param(
         [Parameter(Mandatory = $false)] [string]$DomainName,
         [Parameter(Mandatory = $false)] [switch]$Graph,
@@ -1549,7 +1539,7 @@ For adding yourself or others to group or list of groups
 		[Parameter(Mandatory = $false)][string]$ClientID,
 		[Parameter(Mandatory = $false)][string]$ClientSecret,
 		[Parameter(Mandatory = $false)][string]$UserID,
-		[Parameter(Mandatory = $true)][string]$TenantID,
+		[Parameter(Mandatory = $true)][string]$DomainName,
         [Parameter(Mandatory = $true)][ValidateSet("add", "delete")][string]$Action,
         [Parameter(Mandatory = $true)][string]$GroupIdsInput,
         [string]$SuccessLogFile = ".\\success_log.txt",
@@ -1557,9 +1547,34 @@ For adding yourself or others to group or list of groups
 		
     )
 
+
+
+    	function Get-DomainName {
+            try {
+                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+                $TenantID = ($response.issuer -split "/")[3]
+                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+                 return $TenantID
+            } catch {
+                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+                return $null
+             }
+        }
+
+
+       	if ($DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
+
+
 		function Get-Token-WithRefreshToken {
 		param(
-        [Parameter(Mandatory = $false)][string]$RefreshToken
+        [Parameter(Mandatory = $false)][string]$RefreshToken,
+        [Parameter(Mandatory = $false)][string]$TenantID
 		)
 		
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -1572,10 +1587,13 @@ For adding yourself or others to group or list of groups
 			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
 		}
 
+
 		function Get-Token-WithClientSecret {
 		param(
 			[Parameter(Mandatory = $false)][string]$ClientID,
-		[Parameter(Mandatory = $false)][string]$ClientSecret
+		    [Parameter(Mandatory = $false)][string]$ClientSecret,
+            [Parameter(Mandatory = $false)][string]$TenantID
+
 		)
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
 			$body = @{
@@ -1590,10 +1608,10 @@ For adding yourself or others to group or list of groups
 		$authMethod = ""
 		if ($RefreshToken) {
 			$authMethod = "refresh"
-			$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+			$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
 		} elseif ($ClientId -and $ClientSecret) {
 			$authMethod = "client"
-			$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
+			$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret -TenantID $TenantID
 		} elseif ($DeviceCodeFlow) {
 			$authMethod = "refresh"
 			if (Test-Path "C:\Users\Public\RefreshToken.txt"){
@@ -1601,7 +1619,7 @@ For adding yourself or others to group or list of groups
 				$RefreshToken = Get-DeviceCodeToken
 				Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
 				Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
-				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
 			}
 		if (-not $GraphAccessToken) { return }
 
@@ -1721,7 +1739,7 @@ function Invoke-ResourcePermissions {
         [string]$RefreshToken,
         [string]$ClientId,
         [string]$ClientSecret,
-	    [string]$TenantID,
+	    [string]$DomainName,
         [switch]$KeyVault,
         [switch]$StorageAccount,
         [switch]$VirtualMachine,
@@ -1780,6 +1798,83 @@ function Invoke-ResourcePermissions {
             "Microsoft.PolicyInsights/*"                     = "Access or modify policy evaluation results"
         }
 
+
+
+    	function Get-DomainName {
+            try {
+                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+                $TenantID = ($response.issuer -split "/")[3]
+                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+                 return $TenantID
+            } catch {
+                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+                return $null
+             }
+        }
+
+
+       	if ($DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
+
+
+		function Get-Token-WithRefreshToken {
+		param(
+        [Parameter(Mandatory = $false)][string]$RefreshToken,
+        [Parameter(Mandatory = $false)][string]$TenantID
+		)
+		
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "refresh_token"
+				"refresh_token" = $RefreshToken
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+
+
+		function Get-Token-WithClientSecret {
+		param(
+			[Parameter(Mandatory = $false)][string]$ClientID,
+		    [Parameter(Mandatory = $false)][string]$ClientSecret,
+            [Parameter(Mandatory = $false)][string]$TenantID
+
+		)
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+		}
+
+		$authMethod = ""
+		if ($RefreshToken) {
+			$authMethod = "refresh"
+			$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+		} elseif ($ClientId -and $ClientSecret) {
+			$authMethod = "client"
+			$GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret -TenantID $TenantID
+		} elseif ($DeviceCodeFlow) {
+			$authMethod = "refresh"
+			if (Test-Path "C:\Users\Public\RefreshToken.txt"){
+				Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
+				$RefreshToken = Get-DeviceCodeToken
+				Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
+				Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+			}
+		if (-not $GraphAccessToken) { return }
+
+
    
         function Get-AccessToken {
             if ($RefreshToken) {
@@ -1823,66 +1918,56 @@ function Invoke-ResourcePermissions {
 			}
 		} while ($SubUrl)
 
+	    $global:Results = @()
 
-	$global:Results = @()
-
-
-    foreach ($sub in $Subscriptions) {
-        $subId = $sub.subscriptionId
-        $subName = $sub.displayName
-        Write-Host "`n[*] Checking subscription: $subName ($subId)" -ForegroundColor Cyan
+        foreach ($sub in $Subscriptions) {
+            $subId = $sub.subscriptionId
+            $subName = $sub.displayName
+            Write-Host "`n[*] Checking subscription: $subName ($subId)" -ForegroundColor Cyan
 
 			$Resources = @()
-				$ResourcesUrl = "https://management.azure.com/subscriptions/$subId/resources?api-version=2021-04-01"
-
-				try {
-					do {
-						$Response = Invoke-RestMethod -Uri $ResourcesUrl -Headers $Headers
-						$Resources += $Response.value
-
-						
-						$ResourcesUrl = $Response.nextLink
-					} while ($ResourcesUrl)
-				}
-				catch {
+			$ResourcesUrl = "https://management.azure.com/subscriptions/$subId/resources?api-version=2021-04-01"
+			try {
+				do {
+					$Response = Invoke-RestMethod -Uri $ResourcesUrl -Headers $Headers
+					$Resources += $Response.value
+					$ResourcesUrl = $Response.nextLink
+				} while ($ResourcesUrl)
+			}
+			catch {
 					Write-Warning "Failed to retrieve resources for subscription ${subName}: $($_.Exception.Message)"
 					continue
-				}
+			}
 
-							if ($KeyVault -or $All) {
-							$KeyVaults = $Resources | Where-Object { $_.type -eq "Microsoft.KeyVault/vaults" }
+			if ($KeyVault -or $All) {
+				$KeyVaults = $Resources | Where-Object { $_.type -eq "Microsoft.KeyVault/vaults" }
+					foreach ($kv in $KeyVaults) {
+						$kvId = $kv.id
+						$kvName = $kv.name
+						$kvRg = ($kvId -split '/')[4]
+						Write-Host "   [+] Found KeyVault: $kvName in Resource Group: $kvRg" -ForegroundColor Yellow
+						try {
+							$Permission_Vault_Url = "https://management.azure.com${kvId}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01"
+							$permResponse = Invoke-RestMethod -Uri $Permission_Vault_Url -Headers $Headers
+							$Vault_Actions = $permResponse.value.actions
+							$Vault_NotActions = $permResponse.value.notActions
+						} catch {
+							    Write-Warning "Failed to retrieve permissions for KeyVault $kvName"
+							    continue
+						    }
 
-							foreach ($kv in $KeyVaults) {
-								$kvId = $kv.id
-								$kvName = $kv.name
-								$kvRg = ($kvId -split '/')[4]
-
-								Write-Host "   [+] Found KeyVault: $kvName in Resource Group: $kvRg" -ForegroundColor Yellow
-
-								try {
-									$Permission_Vault_Url = "https://management.azure.com${kvId}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01"
-									$permResponse = Invoke-RestMethod -Uri $Permission_Vault_Url -Headers $Headers
-
-									$Vault_Actions = $permResponse.value.actions
-									$Vault_NotActions = $permResponse.value.notActions
-								} catch {
-									Write-Warning "Failed to retrieve permissions for KeyVault $kvName"
-									continue
-								}
-
-								$PermissionFlags = @{
-									MicrosoftKeyVaultWildcard = $false
-									VaultWildcard = $false
-									VaultsRead = $false
-									VaultsWrite = $false
-									SecretsRead = $false
-									KeysRead = $false
-									CertificatesRead = $false
-									BadOption = $false
-								}
+							$PermissionFlags = @{
+                                MicrosoftKeyVaultWildcard = $false
+                                VaultWildcard = $false
+                                VaultsRead = $false
+                                VaultsWrite = $false
+                                SecretsRead = $false
+                                KeysRead = $false
+                                CertificatesRead = $false
+                                BadOption = $false
+							}
 						
-								function Get-AccessToken {
-									#$TenantID = "...." # You Can Edit here too..
+							function Get-AccessToken {
 									if ($RefreshToken) {
 										$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
 										$body = @{
@@ -1893,7 +1978,6 @@ function Invoke-ResourcePermissions {
 										}
 										$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
 										Write-Host "      [+] Access Token received successfully for Vault API" -ForegroundColor DarkGray
-										
 										return $Tokens.access_token
 									} elseif ($ClientId -and $ClientSecret) {
 										$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -1905,7 +1989,6 @@ function Invoke-ResourcePermissions {
 										}
 										$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
 										Write-Host "      [+] Access Token received successfully for Vault API" -ForegroundColor DarkGray
-										
 										return $Tokens.access_token
 									} else {
 										Write-Error "Must provide either -RefreshToken or -ClientId and -ClientSecret."
@@ -1913,7 +1996,6 @@ function Invoke-ResourcePermissions {
 									}
 								}
 
-					
 								function Get-VaultItems {
 								param (
 									[string]$VaultUrl,
@@ -2074,13 +2156,9 @@ function Invoke-ResourcePermissions {
 									}
 								}
 							}
-						} else {
-							#Write-Host "      [-] No read permissions detected, skipping token request." -ForegroundColor DarkGray
-						}
+						} 
 					}
 				}
-
-
 
 
 				if ($PermissionFlags.BadOption) {
@@ -2190,8 +2268,6 @@ function Invoke-ResourcePermissions {
 						}
 				}
 
-				
-
 
 				if ($SecretsList.Count -gt 0 -or $KeysList.Count -gt 0 -or $CertificatesList.Count -gt 0) {
 						$global:Results += [PSCustomObject]@{
@@ -2204,11 +2280,6 @@ function Invoke-ResourcePermissions {
 							Certificates     = ($CertificatesList -join "<br>")
 						}
 					}
-
-	
-
-		
-       
 
         if ($StorageAccount -or $All) {
 				$StorageAccounts = $Resources | Where-Object { $_.type -eq "Microsoft.Storage/storageAccounts" }
@@ -2250,12 +2321,10 @@ function Invoke-ResourcePermissions {
 						Write-Host "     [CONFLICT] Some permissions are both allowed and denied!" -ForegroundColor DarkRed
 						Write-Host ""
 					}
-
 					if ($FoundBad) {
 						Write-Host "     [BAD] '*' found in NotActions - global deny!" -ForegroundColor Red
 						Write-Host ""
 					}
-
 					if ($FoundInteresting) {
 						Write-Host "     [GREAT] Found interesting permissions!" -ForegroundColor DarkGreen
 
@@ -2476,16 +2545,14 @@ $htmlHeader = @"
     <div class="tab-content" id="permissionsTabContent">
 "@
 
-# ---------------------------------------------------------------------------------------------------
 
-# עיבוד התוצאות
 $KeyVaults = $global:Results | Where-Object { $_.ResourceType -match "^KeyVault" }
 $StorageAccounts = $global:Results | Where-Object { $_.ResourceType -eq "StorageAccount" }
 $VirtualMachines = $global:Results | Where-Object { $_.ResourceType -eq "VirtualMachine" }
 
 $GroupedKeyVaults = $KeyVaults | Group-Object -Property ResourceName
 
-# -- Key Vaults Table
+
 $htmlKV = @"
 <div class="tab-pane fade show active" id="kv" role="tabpanel" aria-labelledby="kv-tab">
     <table id="kvTable" class="table table-striped table-bordered nowrap" style="width:100%">
@@ -2603,7 +2670,6 @@ $htmlVM += @"
 </div>
 "@
 
-# Footer
 $htmlFooter = @"
     </div> <!-- End tab-content -->
 
@@ -2630,7 +2696,7 @@ $htmlFooter = @"
 
 $htmlContent = $htmlHeader + $htmlKV + $htmlSA + $htmlVM + $htmlFooter
 
-$htmlFilePath = "C:\Users\Shugi\Invoke-ResourcePermissions-Report.html"
+$htmlFilePath = "C:\Users\Public\Invoke-ResourcePermissions-Report.html"
 $htmlContent | Set-Content -Path $htmlFilePath -Encoding UTF8
 
 Write-Host "`n[+] Report saved to $htmlFilePath" -ForegroundColor Green
@@ -2642,6 +2708,9 @@ else {
 
 
 }
+
+
+<################################################################################################################################################>
 
 function Invoke-TAPChanger {
     param(
