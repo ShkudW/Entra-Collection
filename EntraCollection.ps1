@@ -693,6 +693,7 @@ function Invoke-FindDynamicGroups {
     } while ($groupApiUrl)
 
     Write-Host "`n[*] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Dynamic group  save to Dynamic_groups.txt" -ForegroundColor DarkCyan
 }
 
 
@@ -1188,7 +1189,8 @@ function Invoke-FindPublicGroups {
 
     } while ($groupApiUrl)
 
-    Write-Host "`n[*] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Public group ids save to Public_Groups.txt" -ForegroundColor DarkCyan
 }
 
 
