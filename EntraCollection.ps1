@@ -3369,7 +3369,7 @@ function Invoke-TAPChanger {
 <######################################################################################################################>
 <######################################################################################################################>
 
-function Invoke-EntraMail {
+function Invoke-ValidUPN {
     param (
         [string]$UsernameFile,
         [string]$DomainName,
@@ -3383,73 +3383,22 @@ function Invoke-EntraMail {
                  "FirstLast", "LastFirst", "FirstInitialLast", "LastInitialFirst", 
                  "InitialFirstLast", "InitialLastFirst", "FirstTwoLast", "LastTwoFirst", 
                  "FirstThreeLast", "LastThreeFirst")]
-        [string]$Style,
-        [int]$Delay = 5  
+        [string]$Style 
     )
 
 
 
-  function Show-Help {
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "Available Flags:" -ForegroundColor Cyan
-        Write-Host "---------------" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "  -DomainName : The domain name (Required)." -ForegroundColor Cyan
-        Write-Host " " 
-        Write-Host "  -FirstName : First name of the user." -ForegroundColor Cyan
-        Write-Host "  -LastName : Last name of the user." -ForegroundColor Cyan
-        Write-Host " "
-        Write-Host "  -NamesFile : Path to file with first and last names." -ForegroundColor Cyan
-        Write-Host "  -UsernameFile : Path to file with usernames." -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "  -OutputFilePath : Path to save output file in HTML format." -ForegroundColor Cyan
-        Write-Host "  -StopOnFirstMatch (Optional): Stop after finding the first valid user (can be used only with -FirstName -LastName or -NamesFile)." -ForegroundColor Cyan
-        Write-Host "  -Delay : Control the delay time between requests (Default 5 Seconds)" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host " Convert Names File To UserNames File:" -ForegroundColor Yellow
-        Write-Host "-------------------------------------" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host " -ConvertNameFile: Path to file with first and last names." -ForegroundColor Yellow
-        Write-Host " -Style: Chose the Format of the Username (FirstL, LastF, First.Last, etc..)" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "Usage Examples:" -ForegroundColor Red
-        Write-Host "--------------" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "  Invoke-EntraMail -FirstName Shaked -LastName Wiessman -DomainName domain.co.il" -ForegroundColor Red
-        Write-Host "  Invoke-EntraMail -NamesFile names.txt -DomainName domain.co.il -StopOnFirstMatch" -ForegroundColor Red
-        Write-Host "  Invoke-EntraMail -UsernameFile usernames.txt -DomainName domain.co.il -OutputFilePath report.html" -ForegroundColor Red
-        Write-Host "  Invoke-EntraMail -ConvertNameFile names.txt -Style First.Last" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "---------------------------------------------------------------------"
-        Write-Host "File Examples:" -ForegroundColor Green
-        Write-Host "-------------"
-        Write-Host ""
-        Write-Host " NamesFile:" -ForegroundColor Green
-        Write-Host " ---------" -ForegroundColor Green
-        Write-Host " fname1 lname1" -ForegroundColor Green
-        Write-Host " fname2 lname2" -ForegroundColor Green
-        Write-Host " fname3 lname3" -ForegroundColor Green
-        Write-Host ""
-        Write-Host " UserNamesFile:" -ForegroundColor Green
-        Write-Host " -------------" -ForegroundColor Green
-        Write-Host " username1" -ForegroundColor Green
-        Write-Host " username2" -ForegroundColor Green
-        Write-Host " username3" -ForegroundColor Green
-        Write-Host ""
-        Write-Host "---------------------------------------------------------------------"
-    }
+		  function help {
+				Write-Host "Invoke-ValidUPN" -ForegroundColor DarkYellow
+				Write-Host "  Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -UsernameFile usernames.txt -DomainName ShkudW.com -OutputFilePath report.html" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -ConvertNameFile names.txt -Style First.Last" -ForegroundColor DarkCyan
 
-    
-		
+			}
 
-    
 			if (-not $UsernameFile -and -not $DomainName -and -not $FirstName -and -not $LastName -and -not $NamesFile -and -not $OutputFilePath -and -not $StopOnFirstMatch -and -not $ConvertNameFile -and -not $style) {
-				Show-Help
+				help
 				return
 			}
 
@@ -3621,13 +3570,10 @@ function Invoke-EntraMail {
             } catch {
                 Write-Host "An error occurred while checking ${fullUserName}: $_" -ForegroundColor Red
             }
-
-            # Apply delay between API requests
-            Start-Sleep -Seconds $Delay
         }
     }
 
-    # Checking file with -NamesFile
+
     elseif ($NamesFile) {
         $names = Get-Content -Path $NamesFile
         foreach ($name in $names) {
@@ -3640,38 +3586,65 @@ function Invoke-EntraMail {
                 foreach ($UserName in $UserNameCombos) {
                     $fullUserName = "${UserName}@${DomainName}"
 
-                    try {
-                        $getCredentialTypeUrl = "https://login.microsoftonline.com/common/GetCredentialType"
-                        $body = @{
-                            Username = $fullUserName
-                        } | ConvertTo-Json
 
-                        $response = Invoke-RestMethod -Uri $getCredentialTypeUrl -Method Post -Body $body -ContentType "application/json"
 
-                        if ($response.IfExistsResult -eq 0) {
-                            Write-Host "The user ${fullUserName} exists in Entra ID." -ForegroundColor Green
-                            $validUsers += $fullUserName
 
-                            if ($StopOnFirstMatch) {
-                                break
-                            }
-                        } else {
-                            Write-Host "The user ${fullUserName} does not exist in Entra ID." -ForegroundColor Red
-                        }
-                    } catch {
-                        Write-Host "An error occurred while checking ${fullUserName}: $_" -ForegroundColor Red
-                    }
+					try {
+						$getCredentialTypeUrl = "https://login.microsoftonline.com/common/GetCredentialType"
+						$body = @{ Username = $fullUserName } | ConvertTo-Json
 
-                    # Apply delay between API requests
-                    Start-Sleep -Seconds $Delay
-                }
+						$response = Invoke-RestMethod -Uri $getCredentialTypeUrl -Method Post -Body $body -ContentType "application/json"
 
-                if ($StopOnFirstMatch -and $validUsers) {
-                    continue
-                }
-            }
+						if ($response.IfExistsResult -eq 0) {
+							Write-Host "The user ${fullUserName} exists in Entra ID." -ForegroundColor Green
+							$validUsers += $fullUserName
+							if ($StopOnFirstMatch) { break }
+						} else {
+							Write-Host "The user ${fullUserName} does not exist in Entra ID." -ForegroundColor Red
+						}
+					}
+					catch {
+						if ($_.Exception.Response -and $_.Exception.Response.StatusCode -eq 429) {
+							Write-Warning "Rate limit hit (429) while checking ${fullUserName}. Backing off..."
+							
+							$retryAfter = $_.Exception.Response.Headers["Retry-After"]
+							if ($retryAfter) {
+								$waitTime = [int]$retryAfter
+							} else {
+								$waitTime = 30  # fallback wait time
+							}
+
+							Write-Warning "Waiting $waitTime seconds before retrying..."
+							Start-Sleep -Seconds $waitTime
+
+							# Retry once after sleep
+							try {
+								$response = Invoke-RestMethod -Uri $getCredentialTypeUrl -Method Post -Body $body -ContentType "application/json"
+
+								if ($response.IfExistsResult -eq 0) {
+									Write-Host "The user ${fullUserName} exists in Entra ID." -ForegroundColor Green
+									$validUsers += $fullUserName
+									if ($StopOnFirstMatch) { break }
+								} else {
+									Write-Host "The user ${fullUserName} does not exist in Entra ID." -ForegroundColor Red
+								}
+							}
+							catch {
+								Write-Host "Retry failed for ${fullUserName}: $_" -ForegroundColor Red
+							}
+						}
+						else {
+							Write-Host "An error occurred while checking ${fullUserName}: $_" -ForegroundColor Red
+						}
+					}
+
+					if ($StopOnFirstMatch -and $validUsers) {
+						continue
+					}
+				}
         }
-    }
+		}
+	}
 
     # Checking file with -UsernameFile
     elseif ($UsernameFile) {
