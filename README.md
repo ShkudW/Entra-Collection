@@ -175,3 +175,25 @@ Add or remove a Temporary Access Pass (TAP) for a target user in the Entra ID te
 ```powershell
 Invoke-TAPChanger -AccessToken '<Graph Access Token>' -UseTargetID '<Target User>' -Add | Delete
 ```
+
+
+### `Invoke-ValidUPN`
+Validate whether specified user accounts (UPNs) exist in a target Entra ID tenant.
+
+- This function attempts to validate user existence in Microsoft Entra ID (formerly Azure AD) by probing the GetCredentialType API.
+  It supports checking single users by first and last name, usernames from file, or full name pairs from a names file.
+
+- Multiple username formats are generated from each name pair (e.g., Shaked.Wiessman) to maximize coverage.
+  It uses heuristic analysis of the API response to infer whether the user exists.
+
+- Key capabilities:
+        - `-StopOnFirstMatch` stops checking further combinations once a valid UPN is found.
+        - `-UsernameFile` accepts a list of usernames (one per line).
+        - `-NamesFile` accepts a list of `firstname:lastname` entries.
+        - `-OutputFilePath` allows saving an HTML report with the results.
+
+```powershell
+Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com
+Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch
+Invoke-ValidUPN -UsernameFile usernames.txt -DomainName ShkudW.com -OutputFilePath report.html
+```  
