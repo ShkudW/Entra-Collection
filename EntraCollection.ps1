@@ -3370,6 +3370,61 @@ function Invoke-TAPChanger {
 <######################################################################################################################>
 
 function Invoke-ValidUPN {
+
+    <#
+    .SYNOPSIS
+        Validate whether specified user accounts (UPNs) exist in a target Entra ID tenant.
+
+    .DESCRIPTION
+        This function attempts to validate user existence in Microsoft Entra ID (formerly Azure AD) by probing the GetCredentialType API.
+        It supports checking single users by first and last name, usernames from file, or full name pairs from a names file.
+
+        Multiple username formats are generated from each name pair (e.g., Shaked.Wiessman) to maximize coverage.
+        It uses heuristic analysis of the API response to infer whether the user exists.
+
+        Key capabilities:
+        - `-StopOnFirstMatch` stops checking further combinations once a valid UPN is found.
+        - `-UsernameFile` accepts a list of usernames (one per line).
+        - `-NamesFile` accepts a list of `firstname:lastname` entries.
+        - `-OutputFilePath` allows saving an HTML report with the results.
+
+    .PARAMETER FirstName
+        The user's first name. Used for generating UPN combinations.
+
+    .PARAMETER LastName
+        The user's last name. Used for generating UPN combinations.
+
+    .PARAMETER DomainName
+        The domain name of the target Entra ID tenant (e.g., contoso.com).
+
+    .PARAMETER NamesFile
+        Path to a file containing entries in the format: firstname:lastname (one per line).
+
+    .PARAMETER UsernameFile
+        Path to a file containing a list of usernames (without domain suffix).
+
+    .PARAMETER StopOnFirstMatch
+        When specified, stops enumeration after the first valid UPN is found per name entry.
+
+    .PARAMETER OutputFilePath
+        Path to an HTML file where the results will be saved.
+
+    .EXAMPLE
+        Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com
+
+        Checks if any UPN variations for 'Shaked Wiessman' exist in the target tenant.
+
+    .EXAMPLE
+        Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch
+
+        Validates a list of firstname:lastname pairs and stops on first match per entry.
+
+    .EXAMPLE
+        Invoke-ValidUPN -UsernameFile usernames.txt -DomainName ShkudW.com -OutputFilePath report.html
+
+        Checks all usernames in the file and generates an HTML report of the results.
+    #>
+
     param (
         [string]$UsernameFile,
         [string]$DomainName,
@@ -3681,7 +3736,7 @@ function Invoke-ValidUPN {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>EntraMail - Valid Users in EntraID</title>
+    <title>Entra-Collection - Invoke-ValidUPN</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #121212; color: #e0e0e0; }
         .container { max-width: 800px; margin: auto; background-color: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.5); }
