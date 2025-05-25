@@ -46,15 +46,17 @@ function Invoke-GetTokens {
 	#>	
 
 	param(
-		[Parameter(Mandatory = $false)] [string]$DomainName,
+		    [Parameter(Mandatory = $false)] [string]$DomainName,
         	[Parameter(Mandatory = $false)] [switch]$Graph,
-        	[Parameter(Mandatory = $false)] [switch]$ARM		
+        	[Parameter(Mandatory = $false)] [switch]$ARM,
+            [switch]$MethodA,
+            [switch]$MethodB		
 	)
 
 		function Help {
 			Write-Host "Invoke-GetTokens" -ForegroundColor DarkYellow
 			Write-Host "    Usage: Invoke-GetTokens -DomainName ShkudW.com -Graph'" -ForegroundColor DarkCyan
-            		Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkCyan
+            Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkCyan
 		}
 				
             		if (-not $DomainName -and -not $Graph -and -not $ARM){
@@ -62,9 +64,9 @@ function Invoke-GetTokens {
                 		return
             		}
 	             	
-	       		if (-not $DomainName ) {
+	       		    if (-not $DomainName ) {
                 		Write-Host "[!] You must provide Tenant Domain name" -ForegroundColor DarkRed
-		  		Write-Host " " 
+		  		        Write-Host " " 
                 		Help
                 		return
             		}
@@ -78,7 +80,7 @@ function Invoke-GetTokens {
                     
             		if ($Graph -and $ARM) {
                 		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkRed
-		  		Write-Host " " 
+		  		        Write-Host " " 
                 		Help
                 		return
             		}
@@ -97,12 +99,13 @@ function Invoke-GetTokens {
 			}
 		}
 
-        	if($DomainName){$TenantID = Get-DomainName }
+        if($DomainName){$TenantID = Get-DomainName }
 			
-			$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+		$UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 		
-			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
+		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
 			$headers = @{ 'User-Agent' = $UserAgent }
+
        			$Body = @{
             		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
             		"scope"     = "https://graph.microsoft.com/.default"
@@ -135,6 +138,7 @@ function Invoke-GetTokens {
                 		if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkYellow}
                 		Write-Host " " 
 				$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
+                #$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
 
                 	if($Graph) {
 			$refreshBody = @{
@@ -153,7 +157,7 @@ function Invoke-GetTokens {
 				}
                 	}
 		try {
-			$refreshResponse = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBody -ContentType "application/x-www-form-urlencoded"
+			$refreshResponse = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBody -Headers $headers -ContentType "application/x-www-form-urlencoded"
 			$AccessToken = $refreshResponse.access_token
                     	if($Graph) {Write-Host "[+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
                     	if($ARM) {Write-Host "[+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
@@ -263,6 +267,9 @@ function Invoke-CheckCABypass {
             "fc0f3af4-6835-4174-b806-f7db311fd2f3" = "Microsoft Intune Windows Agent"
         }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
+
 		function Help {
 			Write-Host "Invoke-CheckCABypass" -ForegroundColor DarkYellow
 			Write-Host "    Usage: Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
@@ -275,14 +282,14 @@ function Invoke-CheckCABypass {
 
             if ($DomainName -and -not $RefreshToken){
                 Write-Host "[!] You need to provide a Refresh Token" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 		
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -306,7 +313,7 @@ function Invoke-CheckCABypass {
                 }
 
                 try {
-                    $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
+                    $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
                     $AccessToken = $response.access_token
                     if ($AccessToken) {
                         Write-Host "[^.^] Access Token for ARM API with Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGreen
@@ -331,7 +338,7 @@ function Invoke-CheckCABypass {
                     }
 
                     try {
-                        $deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $deviceBody
+                        $deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $deviceBody -Headers $headers
                         Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
                         Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkGray
                         Start-Process $deviceResponse.verification_uri
@@ -350,7 +357,7 @@ function Invoke-CheckCABypass {
 
                         while ($true) {
                             try {
-                                $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
+                                $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -Headers $headers -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
                                 $AccessToken = $pollResponse.access_token
                                 Write-Host "[^.^] New Access Token granted with Client ID: $ClientID" -ForegroundColor DarkGreen
                                 Write-Host "Access Token: $AccessToken" -ForegroundColor DarkGreen
@@ -424,9 +431,9 @@ function Invoke-FindDynamicGroups {
 	param (
         	[Parameter(Mandatory = $false)] [string]$RefreshToken,
         	[Parameter(Mandatory = $false)] [switch]$DeviceCodeFlow,
-		[Parameter(Mandatory = $false)] [string]$ClientID,
-		[Parameter(Mandatory = $false)] [string]$DomainName,
-		[Parameter(Mandatory = $false)] [string]$ClientSecret
+		    [Parameter(Mandatory = $false)] [string]$ClientID,
+		    [Parameter(Mandatory = $false)] [string]$DomainName,
+		    [Parameter(Mandatory = $false)] [string]$ClientSecret
     )
 
 
@@ -444,28 +451,31 @@ function Invoke-FindDynamicGroups {
 
             if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
                 Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkRed
-		Write-Host " "
-		Help
+		        Write-Host " "
+		        Help
                 return
             }
 
              if ($DomainName -and $ClientId -and -not $ClientSecret) {
                 Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }   
 
             if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow) {
                 Write-Host "[!] What?!?" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }           
 	
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
+
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -480,14 +490,12 @@ function Invoke-FindDynamicGroups {
 		
 		function Get-DeviceCodeToken {
 			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-            		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-			$headers = @{ 'User-Agent' = $UserAgent }
 			$body = @{
 				"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 				"Resource"     = "https://graph.microsoft.com"
 			}
 
-			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
+			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $body -Headers $headers
 			$code = $authResponse.user_code
 			$deviceCode = $authResponse.device_code
 		    Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
@@ -532,7 +540,7 @@ function Invoke-FindDynamicGroups {
                     		"grant_type"    = "refresh_token"
                     		"refresh_token" = $RefreshToken
 			    }
-			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 		function Get-Token-WithClientSecret {
@@ -548,7 +556,7 @@ function Invoke-FindDynamicGroups {
 				"scope"         = "https://graph.microsoft.com/.default"
 				"grant_type"    = "client_credentials"
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 		$authMethod = ""
@@ -584,6 +592,7 @@ function Invoke-FindDynamicGroups {
 			"Content-Type"     = "application/json"
 			"ConsistencyLevel" = "eventual"
 			"Prefer"           = "odata.maxpagesize=999"
+            "User-Agent"        = "$UserAgent"
 		}
 
 		$startTime = Get-Date
@@ -747,8 +756,8 @@ function Invoke-FindPublicGroups {
         function Help {
 			Write-Host "Invoke-FindPublicGroups" -ForegroundColor DarkYellow
 			Write-Host "    Usage: Invoke-FindPublicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkCyan
-            		Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
-            		Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
+            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
+            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
 			Write-Host "Deep flag: Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' | -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' | -DeviceCodeFlow -Deep  " -ForegroundColor DarkCyan
 		}
 
@@ -760,28 +769,30 @@ function Invoke-FindPublicGroups {
             if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
                 Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkRed
                 Write-Host " "
-		Help
+		        Help
                 return
             }
 
              if ($DomainName -and $ClientId -and -not $ClientSecret) {
                 Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkRed
                 Write-Host " "
-		Help
+		        Help
                 return
             }   
 
             if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow -and $Deep) {
                 Write-Host "[!] What?!?" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }           
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
 	
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -803,14 +814,12 @@ function Invoke-FindPublicGroups {
 
         function Get-DeviceCodeToken {
                 $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-                $UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-                $headers = @{ 'User-Agent' = $UserAgent }
                 $body = @{
                     "client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
                     "Resource"     = "https://graph.microsoft.com"
                 }
 
-                $authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
+                $authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $body -Headers $headers
                 $code = $authResponse.user_code
                 $deviceCode = $authResponse.device_code
                 Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
@@ -855,7 +864,7 @@ function Invoke-FindPublicGroups {
                     "grant_type"    = "refresh_token"
                     "refresh_token" = $RefreshToken
 			    }
-			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 		function Get-Token-WithClientSecret {
@@ -871,7 +880,7 @@ function Invoke-FindPublicGroups {
 				"scope"         = "https://graph.microsoft.com/.default"
 				"grant_type"    = "client_credentials"
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
     
@@ -944,7 +953,10 @@ function Invoke-FindPublicGroups {
                     New-Item -ItemType Directory -Path "Conversations" | Out-Null
                 }
 
-                $headers = @{ Authorization = "Bearer $AccessToken" }
+                $headers = @{ 
+                    'Authorization' = "Bearer $AccessToken" 
+                    'user-agent'    = "$UserAgent"
+                    }
                 $keywords = @("admin", "accesstoken", "refreshtoken", "token", "password", "secret")
 
                 function Invoke-With-Retry {
@@ -1053,6 +1065,7 @@ function Invoke-FindPublicGroups {
             "Content-Type"     = "application/json"
             "ConsistencyLevel" = "eventual"
             "Prefer"           = "odata.maxpagesize=999"
+            "user-agent"    = "$UserAgent"
         }
         
 
@@ -1209,7 +1222,7 @@ function Invoke-FindServicePrincipal {
 
     param (
         [string]$RefreshToken,
-	[string]$DomainName
+	    [string]$DomainName
     )
 
 
@@ -1223,10 +1236,12 @@ function Invoke-FindServicePrincipal {
                 return
             }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
 
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -1257,7 +1272,7 @@ function Invoke-FindServicePrincipal {
             }
 
             try {
-                $response = Invoke-RestMethod -Method Post -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded"
+                $response = Invoke-RestMethod -Method Post -Uri $url -Body $body -Headers $headers -ContentType "application/x-www-form-urlencoded"
                 return $response.access_token
             } catch {
                 Write-Host "[-] Failed to get access token: $_" -ForegroundColor Red
@@ -1272,6 +1287,7 @@ function Invoke-FindServicePrincipal {
         $headers = @{
             "Authorization" = "Bearer $GraphAccessToken"
             "Content-Type"  = "application/json"
+            "User-Aagent"    = "$UserAgent"
         }
 
         $allServicePrincipalIds = @()
@@ -1309,6 +1325,7 @@ function Invoke-FindServicePrincipal {
                     $headers = @{
                         "Authorization" = "Bearer $GraphAccessToken"
                         "Content-Type"  = "application/json"
+                        "User-Agent"    = "$UserAgent"
                     }
                 }
 
@@ -1422,10 +1439,12 @@ function Invoke-FindUserRole {
                 return
             }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
 
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -1458,7 +1477,7 @@ function Invoke-FindUserRole {
                         "grant_type"    = "refresh_token"
                         "refresh_token" = $RefreshToken
                     }
-                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
             }
 
        	if ($DomainName) {
@@ -1477,6 +1496,7 @@ function Invoke-FindUserRole {
         $headers = @{
             Authorization = "Bearer $AccessToken"
             "Content-Type" = "application/json"
+            "User-Aget"    = "$UserAgent"
         }
 
         $allUsers = @()
@@ -1615,7 +1635,7 @@ function Invoke-FindUserByWord {
 
             if ($RefreshToken -and $DomainName -and -not $Word) {
                 Write-Host "[!] You need to provide a Work to search" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
@@ -1625,9 +1645,12 @@ function Invoke-FindUserByWord {
 	    if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
 
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
+
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -1661,7 +1684,7 @@ function Invoke-FindUserByWord {
                         "grant_type"    = "refresh_token"
                         "refresh_token" = $RefreshToken
                     }
-                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+                    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
             }
 
 
@@ -1686,6 +1709,7 @@ function Invoke-FindUserByWord {
             $Headers = @{
                 "Authorization" = "Bearer $AccessToken"
                 "Content-Type"  = "application/json"
+                "User-Agent"    ="$UserAgent"
             }
 
             try {
@@ -1806,7 +1830,10 @@ function Invoke-GroupMappingFromJWT {
         foreach ($gid in $GroupIds) {
             $groupUrl = "https://graph.microsoft.com/v1.0/groups/$gid"
             $roleUrl = "https://graph.microsoft.com/v1.0/directoryRoles"
-            $headers = @{ Authorization = "Bearer $GraphAccessToken" }
+            $headers = @{ 
+                'Authorization' = "Bearer $GraphAccessToken" 
+                'User-Agent'    = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+                }
             $RetryCount = 0
             $MaxRetries = 5
 
@@ -1909,14 +1936,14 @@ function Invoke-MembershipChange {
 
     param(
         	[Parameter(Mandatory = $false)][string]$RefreshToken,
-		[Parameter(Mandatory = $false)][string]$ClientID,
-		[Parameter(Mandatory = $false)][string]$ClientSecret,
-		[Parameter(Mandatory = $false)][string]$UserID,
-		[string]$DomainName,
+		    [Parameter(Mandatory = $false)][string]$ClientID,
+		    [Parameter(Mandatory = $false)][string]$ClientSecret,
+		    [Parameter(Mandatory = $false)][string]$UserID,
+		    [string]$DomainName,
         	[Parameter(Mandatory)][ValidateSet("add", "delete")][string]$Action,
         	[string]$GroupIdsInput,
         	[string]$SuccessLogFile = ".\\success_log.txt",
-		[string]$SuccessRenoveLogFile = ".\\success_Remove_log.txt"
+		    [string]$SuccessRenoveLogFile = ".\\success_Remove_log.txt"
 		
     )
 
@@ -1927,7 +1954,7 @@ function Invoke-MembershipChange {
 			Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
  			Write-Host "    With getting 'UserID'" -ForegroundColor DarkYellow  
 			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
-           		Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
+           	Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
 
 
 
@@ -1940,14 +1967,17 @@ function Invoke-MembershipChange {
 
             if ($RefreshToken -and $ClientID -and $ClientSecret) {
                 Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
+
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                 Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -1981,7 +2011,7 @@ function Invoke-MembershipChange {
 				"grant_type"    = "refresh_token"
 				"refresh_token" = $RefreshToken
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 
@@ -1999,7 +2029,7 @@ function Invoke-MembershipChange {
 				"scope"         = "https://graph.microsoft.com/.default"
 				"grant_type"    = "client_credentials"
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 		$authMethod = ""
@@ -2061,6 +2091,7 @@ function Invoke-MembershipChange {
             $Headers = @{
                 'Authorization' = "Bearer $GraphAccessToken"
                 'Content-Type'  = 'application/json'
+                'User-Agent'    = "$UserAgent"
             }
             $RetryCount = 0
             $MaxRetries = 5
@@ -2185,7 +2216,7 @@ function Invoke-ResourcePermissions {
         [string]$RefreshToken,
         [string]$ClientId,
         [string]$ClientSecret,
-	[string]$DomainName,
+	    [string]$DomainName,
         [switch]$KeyVault,
         [switch]$StorageAccount,
         [switch]$VirtualMachine,
@@ -2258,22 +2289,24 @@ function Invoke-ResourcePermissions {
 
             if ($RefreshToken -and $ClientID -and $ClientSecret) {
                 Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 
             if ($RefreshToken -and -not $KeyVault -and -not $StorageAccount -and -not $VirtualMachine -and -not $All -and -not $DomainName) {
                 Write-Host "[!] Please select what do you want to enumerate" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
 
 		function Get-DomainName {
 			try {
-				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration" -Headers $headers
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
                	 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
@@ -2307,15 +2340,15 @@ function Invoke-ResourcePermissions {
 				"grant_type"    = "refresh_token"
 				"refresh_token" = $RefreshToken
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 
 		function Get-Token-WithClientSecret {
 		param(
 			[Parameter(Mandatory = $false)][string]$ClientID,
-		    	[Parameter(Mandatory = $false)][string]$ClientSecret,
-            		[Parameter(Mandatory = $false)][string]$TenantID
+		    [Parameter(Mandatory = $false)][string]$ClientSecret,
+            [Parameter(Mandatory = $false)][string]$TenantID
 
 		)
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -2325,7 +2358,7 @@ function Invoke-ResourcePermissions {
 				"scope"         = "https://graph.microsoft.com/.default"
 				"grant_type"    = "client_credentials"
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
 		$authMethod = ""
@@ -2352,14 +2385,14 @@ function Invoke-ResourcePermissions {
             if ($RefreshToken) {
                 $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
                 $body = @{ client_id = "d3590ed6-52b3-4102-aeff-aad2292ab01c"; scope = "https://management.azure.com/.default"; grant_type = "refresh_token"; refresh_token = $RefreshToken }
-                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Headers $headers -Body $body
                 Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
                 Write-Host ""
                 return $Tokens.access_token
             } elseif ($ClientId -and $ClientSecret) {
                 $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
                 $body = @{ client_id = $ClientId; client_secret = $ClientSecret; scope = "https://management.azure.com/.default"; grant_type = "client_credentials" }
-                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+                $Tokens = Invoke-RestMethod -Method POST -Uri $url -Headers $headers -Body $body
                 Write-Host "[+] Access Token received successfully" -ForegroundColor DarkGray
                 Write-Host ""
                 return $Tokens.access_token
@@ -2372,7 +2405,7 @@ function Invoke-ResourcePermissions {
         $ARMAccessToken = Get-AccessToken
         $Headers = @{
             'Authorization' = "Bearer $ARMAccessToken"
-            'User-Agent'    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            'User-Agent'    = "$UserAgent"
         }
 
         $SubUrl = "https://management.azure.com/subscriptions?api-version=2021-01-01"
@@ -3231,24 +3264,26 @@ function Invoke-TAPChanger {
 
         function Help {
 			Write-Host "Invoke-TAPChanger" -ForegroundColor DarkYellow
-            		Write-Host "[!] You need a privileged account for this action" -ForegroundColor DarkYellow
+            Write-Host "[!] You need a privileged account for this action" -ForegroundColor DarkYellow
 			Write-Host "    Usage: Invoke-TAPChanger -AccessToken 'eyJ0eXAiOiJKV1QiLCJub25j.....' -UseTargetID '47d6850f-d3b2...' -Add | -Delete " -ForegroundColor DarkCyan
 		}
 
             if (-not $AccessToken -and -not $UseTargetID -and -not $Add -and -not $Delete) {
                 Write-Host "[!] Select only one action" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 
             if ($Add -and $Delete ) {
                 Write-Host "[!] Select only one action" -ForegroundColor DarkRed
-		Write-Host " "
+		        Write-Host " "
                 Help
                 return
             }
 
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
 
         function New-TemporaryAccessPass {
             param(
@@ -3272,6 +3307,7 @@ function Invoke-TAPChanger {
             $headers = @{
                 Authorization = "Bearer $Token"
                 "Content-Type" = "application/json"
+                "User-Agent"    = "$UserAgent"
             }
 
             try {
@@ -3295,6 +3331,7 @@ function Invoke-TAPChanger {
             $headers = @{
                 Authorization = "Bearer $Token"
                 "Content-Type" = "application/json"
+                "User-Agent"    = "$UserAgent"
             }   
 
             try {
