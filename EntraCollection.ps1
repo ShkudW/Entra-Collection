@@ -63,21 +63,21 @@ function Invoke-GetTokens {
             		}
 	             	
 	       		if (-not $DomainName ) {
-                		Write-Host "[!] You must provide Tenant Domain name" -ForegroundColor DarkYRed
+                		Write-Host "[!] You must provide Tenant Domain name" -ForegroundColor DarkRed
 		  		Write-Host " " 
                 		Help
                 		return
             		}
 
             		if ($DomainName -and -not $Graph -and -not $ARM){
-                		Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYRed
+                		Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkRed
                 		Write-Host " " 
                 		Help
                 		return
             		}
                     
             		if ($Graph -and $ARM) {
-                		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYRed
+                		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkRed
 		  		Write-Host " " 
                 		Help
                 		return
