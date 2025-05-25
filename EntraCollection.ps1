@@ -916,14 +916,18 @@ function Invoke-FindPublicGroups {
 
     	 function Invoke-With-Retry {
             param (
-                [string]$Url,
-                [hashtable]$Headers
+                [string]$Url
             )
+            $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+            $headers = @{ 
+                'User-Agent' = $UserAgent
+                'Authorization' = "Bearer $GraphAccessToken"
+                 }
             $success = $false
             $response = $null
             do {
                 try {
-                    $response = Invoke-RestMethod -Uri $Url -Headers $Headers -ErrorAction Stop
+                    $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
                     $success = $true
                 } catch {
                     $statusCode = $_.Exception.Response.StatusCode.value__
