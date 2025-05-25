@@ -53,25 +53,25 @@ function Invoke-GetTokens {
 		function Help {
 			Write-Host "Invoke-GetTokens" -ForegroundColor DarkBlue
 			Write-Host "    Usage: Invoke-GetTokens -DomainName ShkudW.com -Graph'" -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkBlue
+            		Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkBlue
 		}
 				
-            if (-not $DomainName -and -not $Graph -and -not $ARM){
-                Help
-                return
-            }
+            		if (-not $DomainName -and -not $Graph -and -not $ARM){
+                		Help
+                		return
+            		}
 
-            if ($DomainName -and -not $Graph -and -not $ARM){
-                Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYellow
-                Help
-                return
-            }
+            		if ($DomainName -and -not $Graph -and -not $ARM){
+                		Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYellow
+                		Help
+                		return
+            		}
                     
-            if ($Graph -and $ARM) {
-                Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYellow
-                Help
-                return
-            }
+            		if ($Graph -and $ARM) {
+                		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYellow
+                		Help
+                		return
+            		}
 
 
 		function Get-DomainName {
@@ -79,7 +79,7 @@ function Invoke-GetTokens {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+                		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -87,16 +87,16 @@ function Invoke-GetTokens {
 			}
 		}
 
-        if($DomainName){$TenantID = Get-DomainName }
+        	if($DomainName){$TenantID = Get-DomainName }
 			
 		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 		
 		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
 		$headers = @{ 'User-Agent' = $UserAgent }
-        $Body = @{
-            "client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            "Resource"     = "https://graph.microsoft.com"
-         }
+       		$Body = @{
+            		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            		"Resource"     = "https://graph.microsoft.com"
+         	}
 
 		$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
 		$code = $authResponse.user_code
