@@ -1648,13 +1648,6 @@ function Invoke-FindUserByWord {
                     return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
             }
 
-       	if ($DomainName) {
-            $TenantID = Get-DomainName -DomainName $DomainName
-            if (-not $TenantID) {
-                 Write-Error "[-] Cannot continue without Tenant ID."
-                return
-            }
-        }
 
         if($RefreshToken) {
             $AccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
