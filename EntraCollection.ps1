@@ -12,8 +12,9 @@
 .NOTES
     Author: Shaked Wiessman (@ShkudW)
     Use responsibly and only in environments you are authorized to test.
-
 #>
+
+
 
 function Invoke-GetTokens {
 	
@@ -45,9 +46,9 @@ function Invoke-GetTokens {
 	#>	
 
 	param(
-        [Parameter(Mandatory = $false)] [string]$DomainName,
-        [Parameter(Mandatory = $false)] [switch]$Graph,
-        [Parameter(Mandatory = $false)] [switch]$ARM		
+		[Parameter(Mandatory = $false)] [string]$DomainName,
+        	[Parameter(Mandatory = $false)] [switch]$Graph,
+        	[Parameter(Mandatory = $false)] [switch]$ARM		
 	)
 
 		function Help {
@@ -62,13 +63,15 @@ function Invoke-GetTokens {
             		}
 
             		if ($DomainName -and -not $Graph -and -not $ARM){
-                		Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYellow
+                		Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYRed
+                		Write-Host " " 
                 		Help
                 		return
             		}
                     
             		if ($Graph -and $ARM) {
-                		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYellow
+                		Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYRed
+		  		Write-Host " " 
                 		Help
                 		return
             		}
@@ -89,25 +92,25 @@ function Invoke-GetTokens {
 
         	if($DomainName){$TenantID = Get-DomainName }
 			
-		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+			$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 		
-		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
-		$headers = @{ 'User-Agent' = $UserAgent }
-       		$Body = @{
+			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
+			$headers = @{ 'User-Agent' = $UserAgent }
+       			$Body = @{
             		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
             		"Resource"     = "https://graph.microsoft.com"
-         	}
+         		}
 
-		$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
-		$code = $authResponse.user_code
-		$deviceCode = $authResponse.device_code
-		Write-Host "`n[#] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
-		Write-Host " $code" -ForegroundColor DarkGray
-		Start-Sleep -Seconds 5
-		Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
+			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
+			$code = $authResponse.user_code
+			$deviceCode = $authResponse.device_code
+			Write-Host "`n[#] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
+			Write-Host " $code" -ForegroundColor DarkGray
+			Start-Sleep -Seconds 5
+			Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
 
-		$tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
-		$tokenBody = @{
+			$tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
+			$tokenBody = @{
 			"scope"      = "openid"
 			"client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 			"grant_type" = "urn:ietf:params:oauth:grant-type:device_code"
@@ -120,53 +123,51 @@ function Invoke-GetTokens {
 				$RefreshToken = $tokenResponse.refresh_token
 				Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
 				Write-Host "[>] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkGray
-                Write-Host " " 
-                if($Graph) {Write-Host "[>] Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkYellow}
-                if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkYellow}
-                Write-Host " " 
+                		Write-Host " " 
+                		if($Graph) {Write-Host "[>] Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkYellow}
+                		if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkYellow}
+                		Write-Host " " 
 				$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
 
-                if($Graph) {
-					$refreshBody = @{
-						"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-						"scope"         = "https://graph.microsoft.com/.default"
-						"grant_type"    = "refresh_token"
-						"refresh_token" = $RefreshToken
-					}
-                }
-
-                if($ARM) {
-					$refreshBody = @{
-						"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-						"scope"         = "https://management.azure.com/.default"
-						"grant_type"    = "refresh_token"
-						"refresh_token" = $RefreshToken
-					}
-                }
-						
-                try {
-					$refreshResponse = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBody -ContentType "application/x-www-form-urlencoded"
-					$AccessToken = $refreshResponse.access_token
-                    if($Graph) {Write-Host "[+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
-                    if($ARM) {Write-Host "[+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
-                    return Write-Host "$AccessToken" -ForegroundColor DarkGreen
-					} catch {
-						    Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
-							return $null
-						}
-					} catch {
-						    $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
-						    if ($errorResponse.error -eq "authorization_pending") {
-							    Start-Sleep -Seconds 5
-						    } elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
-							    Write-Host "`n[-] Authorization failed or expired." -ForegroundColor DarkRed
-							return
-						    } else {
-							    Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
-							return
-						}
-					}
+                	if($Graph) {
+			$refreshBody = @{
+				"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "refresh_token"
+				"refresh_token" = $RefreshToken
 				}
+                	}
+			if($ARM) {
+			$refreshBody = @{
+				"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+				"scope"         = "https://management.azure.com/.default"
+				"grant_type"    = "refresh_token"
+				"refresh_token" = $RefreshToken
+				}
+                	}
+		try {
+			$refreshResponse = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBody -ContentType "application/x-www-form-urlencoded"
+			$AccessToken = $refreshResponse.access_token
+                    	if($Graph) {Write-Host "[+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
+                    	if($ARM) {Write-Host "[+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
+                    	return Write-Host "$AccessToken" -ForegroundColor DarkGreen
+		} catch {
+			Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
+			return $null
+			}
+		} catch {
+			$errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
+			if ($errorResponse.error -eq "authorization_pending") {
+				Start-Sleep -Seconds 5
+			} elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
+				Write-Host "`n[-] Authorization failed or expired." -ForegroundColor DarkRed
+				return
+			} else {
+				Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
+				return
+			}
+		}
+	}
 
 }
 
@@ -266,7 +267,8 @@ function Invoke-CheckCABypass {
             }
 
             if ($DomainName -and -not $RefreshToken){
-                Write-Host "[!] You need to provide a Refresh Token" -ForegroundColor DarkYellow
+                Write-Host "[!] You need to provide a Refresh Token" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
@@ -276,7 +278,7 @@ function Invoke-CheckCABypass {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+                		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -424,8 +426,8 @@ function Invoke-FindDynamicGroups {
 		function Help {
 			Write-Host "Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
 			Write-Host "    Usage: Invoke-FindDynamicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkCyan
-            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
-            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
+            		Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
+            		Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName) {
@@ -434,19 +436,22 @@ function Invoke-FindDynamicGroups {
             }
 
             if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
-                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkYellow
-                Help
+                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkRed
+		Write-Host " "
+		Help
                 return
             }
 
              if ($DomainName -and $ClientId -and -not $ClientSecret) {
-                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkYellow
+                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }   
 
             if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow) {
-                Write-Host "[!] What?!?" -ForegroundColor DarkYellow
+                Write-Host "[!] What?!?" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }           
@@ -746,19 +751,22 @@ function Invoke-FindPublicGroups {
             }
 
             if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
-                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkYellow
-                Help
+                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkRed
+                Write-Host " "
+		Help
                 return
             }
 
              if ($DomainName -and $ClientId -and -not $ClientSecret) {
-                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkYellow
-                Help
+                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkRed
+                Write-Host " "
+		Help
                 return
             }   
 
             if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow -and $Deep) {
-                Write-Host "[!] What?!?" -ForegroundColor DarkYellow
+                Write-Host "[!] What?!?" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }           
@@ -1583,8 +1591,8 @@ function Invoke-FindUserByWord {
 
     param(
         [string]$RefreshToken,
-		[string]$DomainName,
-		[string]$Word
+	[string]$DomainName,
+	[string]$Word
     )
 
 
@@ -1599,7 +1607,8 @@ function Invoke-FindUserByWord {
             }
 
             if ($RefreshToken -and $DomainName -and -not $Word) {
-                Write-Host "[!] You need to provide a Work to search" -ForegroundColor DarkYellow
+                Write-Host "[!] You need to provide a Work to search" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
@@ -1909,7 +1918,8 @@ function Invoke-MembershipChange {
             }
 
             if ($RefreshToken -and $ClientID -and $ClientSecret) {
-                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkYellow
+                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
@@ -2226,13 +2236,15 @@ function Invoke-ResourcePermissions {
             }
 
             if ($RefreshToken -and $ClientID -and $ClientSecret) {
-                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkYellow
+                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
 
             if ($RefreshToken -and -not $KeyVault -and -not $StorageAccount -and -not $VirtualMachine -and -not $All -and -not $DomainName) {
-                Write-Host "[!] Please select what do you want to enumerate" -ForegroundColor DarkYellow
+                Write-Host "[!] Please select what do you want to enumerate" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
@@ -2243,7 +2255,7 @@ function Invoke-ResourcePermissions {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+               	 		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -2263,8 +2275,8 @@ function Invoke-ResourcePermissions {
 
 		function Get-Token-WithRefreshToken {
 		param(
-        [Parameter(Mandatory = $false)][string]$RefreshToken,
-        [Parameter(Mandatory = $false)][string]$TenantID
+        		[Parameter(Mandatory = $false)][string]$RefreshToken,
+        		[Parameter(Mandatory = $false)][string]$TenantID
 		)
 		
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -2281,8 +2293,8 @@ function Invoke-ResourcePermissions {
 		function Get-Token-WithClientSecret {
 		param(
 			[Parameter(Mandatory = $false)][string]$ClientID,
-		    [Parameter(Mandatory = $false)][string]$ClientSecret,
-            [Parameter(Mandatory = $false)][string]$TenantID
+		    	[Parameter(Mandatory = $false)][string]$ClientSecret,
+            		[Parameter(Mandatory = $false)][string]$TenantID
 
 		)
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -3203,13 +3215,15 @@ function Invoke-TAPChanger {
 		}
 
             if (-not $AccessToken -and -not $UseTargetID -and -not $Add -and -not $Delete) {
-                Write-Host "[!] Select only one action" -ForegroundColor DarkYellow
+                Write-Host "[!] Select only one action" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
 
             if ($Add -and $Delete ) {
-                Write-Host "[!] Select only one action" -ForegroundColor DarkYellow
+                Write-Host "[!] Select only one action" -ForegroundColor DarkRed
+		Write-Host " "
                 Help
                 return
             }
