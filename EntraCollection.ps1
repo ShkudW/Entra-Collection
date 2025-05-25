@@ -105,7 +105,7 @@ function Invoke-GetTokens {
 			$headers = @{ 'User-Agent' = $UserAgent }
        			$Body = @{
             		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            		"Resource"     = "https://graph.microsoft.com"
+            		"scope"     = "https://graph.microsoft.com/.default"
          		}
 
 			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
