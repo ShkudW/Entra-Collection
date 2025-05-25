@@ -200,8 +200,8 @@ function Invoke-CheckCABypass {
 
 	
     param (
-        [Parameter(Mandatory = $true)] [string]$DomainName,
-        [Parameter(Mandatory = $true)] [string]$RefreshToken
+        [string]$DomainName,
+        [string]$RefreshToken
     )
 
         $ClientIDs = @{
@@ -1193,8 +1193,8 @@ function Invoke-FindServicePrincipal {
 
 
     param (
-        [Parameter(Mandatory = $true)] [string]$RefreshToken,
-	    [Parameter(Mandatory = $true)] [string]$DomainName
+        [string]$RefreshToken,
+	    [string]$DomainName
     )
 
 
@@ -1391,8 +1391,8 @@ function Invoke-FindUserRole {
 
 
     param(
-        [Parameter(Mandatory = $true)] [string]$RefreshToken,
-        [Parameter(Mandatory = $true)] [string]$DomainName
+        [string]$RefreshToken,
+        [string]$DomainName
 
     )
 
@@ -1582,9 +1582,9 @@ function Invoke-FindUserByWord {
 
 
     param(
-        [Parameter(Mandatory = $true)] [string]$RefreshToken,
-		[Parameter(Mandatory = $true)] [string]$DomainName,
-		[Parameter(Mandatory = $true)] [string]$Word
+        [string]$RefreshToken,
+		[string]$DomainName,
+		[string]$Word
     )
 
 
@@ -1736,8 +1736,8 @@ Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <e
 #>
 
     param (
-        [Parameter(Mandatory = $true)][string]$jwt,
-        [Parameter(Mandatory = $true)][string]$GraphAccessToken
+        [string]$jwt,
+        [string]$GraphAccessToken
     )
 
         function Help {
@@ -1889,9 +1889,9 @@ function Invoke-MembershipChange {
 		[Parameter(Mandatory = $false)][string]$ClientID,
 		[Parameter(Mandatory = $false)][string]$ClientSecret,
 		[Parameter(Mandatory = $false)][string]$UserID,
-		[Parameter(Mandatory = $true)][string]$DomainName,
-        [Parameter(Mandatory = $true)][ValidateSet("add", "delete")][string]$Action,
-        [Parameter(Mandatory = $true)][string]$GroupIdsInput,
+		[string]$DomainName,
+        [Parameter(Mandatory)][ValidateSet("add", "delete")][string]$Action,
+        [string]$GroupIdsInput,
         [string]$SuccessLogFile = ".\\success_log.txt",
 		[string]$SuccessRenoveLogFile = ".\\success_Remove_log.txt"
 		
@@ -3193,8 +3193,8 @@ function Invoke-TAPChanger {
 
 
     param(
-        [Parameter(Mandatory)] [string]$UseTargetID,
-        [Parameter(Mandatory)] [string]$AccessToken,
+        [string]$UseTargetID,
+        [string]$AccessToken,
         [switch]$Add,
         [switch]$Delete,
         [int]$LifetimeMinutes = 60,
