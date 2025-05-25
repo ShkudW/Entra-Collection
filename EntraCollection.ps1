@@ -103,12 +103,12 @@ function Invoke-GetTokens {
 			
 		$UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 		
-		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode"
-			$headers = @{ 'User-Agent' = $UserAgent }
+		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
+		$headers = @{ 'User-Agent' = $UserAgent }
 
-       			$Body = @{
+       		$Body = @{
             		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-            		"scope"     = "https://graph.microsoft.com/.default"
+            		"resource"     = "https://graph.microsoft.com"
          		}
 
 			$authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
