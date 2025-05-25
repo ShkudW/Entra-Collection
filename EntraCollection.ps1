@@ -1535,7 +1535,6 @@ function Invoke-FindUserRole {
             }
         }
 
-    # === Summary Output ===
         if ($usersWithRoles.Count -gt 0) {
             Write-Host "`n==========================" -ForegroundColor Cyan
             Write-Host "Users with Roles Found:" -ForegroundColor Cyan
@@ -2107,8 +2106,57 @@ function Invoke-MembershipChange {
 
 
 <######################################################################################################################################################>
+<######################################################################################################################################################>
 
 function Invoke-ResourcePermissions {
+
+    <#
+    .SYNOPSIS
+        Enumerate your effective role assignments on Azure resources, including Key Vaults, Storage Accounts, and Virtual Machines.
+
+    .DESCRIPTION
+        This function queries the Azure Resource Manager (ARM) API to identify all Azure resources you have permissions on, 
+        and maps your effective role assignments for each supported resource type. 
+
+        The focus is on high-value targets such as:
+        - **Key Vaults**: to check for access to secrets, keys, and certificates.
+        - **Storage Accounts**: to check for read/write access to blobs, files, queues, or tables.
+        - **Virtual Machines**: to detect VM Contributor/Administrator roles that may allow command execution or snapshotting.
+        
+        The function supports multiple authentication methods and can be scoped by resource type or executed with `-All` to scan everything.
+
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token used for authentication.
+
+    .PARAMETER ClientID
+        Application (client) ID for service principal authentication.
+
+    .PARAMETER ClientSecret
+        The corresponding client secret for the service principal.
+
+    .PARAMETER KeyVault
+        Restricts enumeration to Azure Key Vault resources only.
+
+    .PARAMETER StorageAccount
+        Restricts enumeration to Azure Storage Account resources only.
+
+    .PARAMETER VirtualMachine
+        Restricts enumeration to Azure Virtual Machine resources only.
+
+    .PARAMETER All
+        Enumerates all supported resource types: Key Vaults, Storage Accounts, and Virtual Machines.
+
+    .EXAMPLE
+        Invoke-ResourcePermissions -DomainName ShkudW.com -RefreshToken <token> -KeyVault | -StorageAccount | -VirtualMachine | -All 
+
+    .EXAMPLE
+        Invoke-ResourcePermissions -DomainName ShkudW.com -ClientID <id> -ClientSecret <secret> -KeyVault | -StorageAccount | -VirtualMachine | -All 
+    #>
+
+
     param(
         [string]$RefreshToken,
         [string]$ClientId,
@@ -2173,21 +2221,45 @@ function Invoke-ResourcePermissions {
         }
 
 
+        function Help {
+			Write-Host "Invoke-ResourcePermissions" -ForegroundColor DarkBlue   
+			Write-Host "    Usage: Invoke-ResourcePermissions -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkBlue
+			Write-Host "         : Invoke-ResourcePermissions -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkBlue
+		}
 
-    	function Get-DomainName {
-            try {
-                $response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
-                $TenantID = ($response.issuer -split "/")[3]
-                Write-Host "[*] Tenant ID for $DomainName is $TenantID" -ForegroundColor DarkCyan
-                 return $TenantID
-            } catch {
-                Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
-                return $null
-             }
-        }
+            if (-not $RefreshToken -and -not $ClientID -and -not $ClientSecret -and -not $KeyVault -and -not $StorageAccount -and -not $VirtualMachine -and -not $All -and -not $DomainName) {
+                Help
+                return
+            }
+
+            if ($RefreshToken -and $ClientID -and $ClientSecret) {
+                Write-Host "[!] You are can not provide Refresh Token and ClientID+ClientSecret together" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+            if ($RefreshToken -and -not $KeyVault -and -not $StorageAccount -and -not $VirtualMachine -and -not $All -and -not $DomainName) {
+                Write-Host "[!] Please select what do you want to enumerate" -ForegroundColor DarkYellow
+                Help
+                return
+            }
 
 
-       	if ($DomainName) {
+		function Get-DomainName {
+			try {
+				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
+				$TenantID = ($response.issuer -split "/")[3]
+				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
+                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+				return $TenantID
+			} catch {
+				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
+				return $null
+			}
+		} 
+
+
+        if (-not $TenantID -and $DomainName) {
             $TenantID = Get-DomainName -DomainName $DomainName
             if (-not $TenantID) {
                  Write-Error "[-] Cannot continue without Tenant ID."
@@ -2243,7 +2315,7 @@ function Invoke-ResourcePermissions {
 				Remove-Item -Path "C:\Users\Public\RefreshToken.txt" -Force}
 				$RefreshToken = Get-DeviceCodeToken
 				Add-Content -Path "C:\Users\Public\RefreshToken.txt" -Value $RefreshToken
-				Write-Host "[FOR YOU BABY] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
+				Write-Host "[^.^] refresh token writen in C:\Users\Public\RefreshToken.txt " -ForegroundColor DarkYellow
 				$GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
 			}
 		if (-not $GraphAccessToken) { return }
@@ -3085,8 +3157,41 @@ else {
 
 
 <################################################################################################################################################>
+<################################################################################################################################################>
 
 function Invoke-TAPChanger {
+
+    <#
+    .SYNOPSIS
+        Add or remove a Temporary Access Pass (TAP) for a target user in the Entra ID tenant.
+
+    .DESCRIPTION
+        This function allows you to create or delete a Temporary Access Pass (TAP) for a specific user account in Entra ID.
+        TAPs are time-limited authentication codes that can be used as a second factor or even as a primary login mechanism,
+        making them extremely useful for persistence or account takeover during Red Team operations.
+
+        This operation requires a privileged access token with sufficient permissions (such as the `Authentication Administrator` or `Privileged Authentication Administrator` roles).
+
+    .PARAMETER AccessToken
+        A valid access token with the required permissions to manage TAPs.
+
+    .PARAMETER UseTargetID
+        The Object ID (GUID) of the target user account for which the TAP will be added or deleted.
+
+    .PARAMETER Add
+        Adds a new Temporary Access Pass to the specified user.
+
+    .PARAMETER Delete
+        Deletes existing Temporary Access Passes for the specified user.
+
+    .EXAMPLE
+        Invoke-TAPChanger -AccessToken '<Graph Access Token>' -UseTargetID '<Target User>' -Add
+
+    .EXAMPLE
+        Invoke-TAPChanger -AccessToken '<Graph Access Token>' -UseTargetID '<Target User>' -Delete
+    #>
+
+
     param(
         [Parameter(Mandatory)] [string]$UseTargetID,
         [Parameter(Mandatory)] [string]$AccessToken,
@@ -3096,6 +3201,26 @@ function Invoke-TAPChanger {
         [bool]$IsUsableOnce = $false,
         [datetime]$StartDateTime
     )
+
+
+        function Help {
+			Write-Host "Invoke-TAPChanger" -ForegroundColor DarkBlue
+            Write-Host "[!] You need a privileged account for this action" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-TAPChanger -AccessToken 'eyJ0eXAiOiJKV1QiLCJub25j.....' -UseTargetID '47d6850f-d3b2...' -Add | -Delete " -ForegroundColor DarkBlue
+		}
+
+            if (-not $AccessToken -and -not $UseTargetID -and -not $Add -and -not $Delete) {
+                Write-Host "[!] Select only one action" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
+            if ($Add -and $Delete ) {
+                Write-Host "[!] Select only one action" -ForegroundColor DarkYellow
+                Help
+                return
+            }
+
 
         function New-TemporaryAccessPass {
             param(
@@ -3169,6 +3294,3 @@ function Invoke-TAPChanger {
             Remove-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken
         }
 }
-
-
- <################################################################################################################################################>
