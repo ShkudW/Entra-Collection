@@ -1730,10 +1730,24 @@ function Invoke-FindUserByWord {
 function Invoke-GroupMappingFromJWT {
 
 <#
-if your Access Token contain a list of groups
-this script will help you to enumerate this groups for undestanding if youi have high privilege.
+.SYNOPSIS
+    Resolve group Object IDs from a JWT access token into readable group names using Microsoft Graph.
 
-Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <eyJ0eXAiOiJKV1QiLCJub25j...>
+.DESCRIPTION
+    If your access token includes a 'groups' claim with a list of Group Object IDs (GUIDs), this function 
+    helps map those IDs to their actual display names and metadata by querying Microsoft Graph.
+
+    This is particularly useful for understanding whether your token includes high-privileged group memberships 
+    such as Global Administrator, Privileged Role Administrator, or any custom elevated group.
+
+.PARAMETER jwt
+    The raw JWT access token that contains a 'groups' claim with one or more group Object IDs.
+
+.PARAMETER GraphAccessToken
+    A valid Microsoft Graph access token with permission to read group information in the target tenant.
+
+.EXAMPLE
+    Invoke-GroupMappingFromJWT -jwt "<eyJ0eXAiOiJKV1QiLCJhbGci...>" -GraphAccessToken "<eyJ0eXAiOiJKV1QiLCJub25j...>"
 
 #>
 
