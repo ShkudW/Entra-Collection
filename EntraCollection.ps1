@@ -51,9 +51,9 @@ function Invoke-GetTokens {
 	)
 
 		function Help {
-			Write-Host "Invoke-GetTokens" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-GetTokens -DomainName ShkudW.com -Graph'" -ForegroundColor DarkBlue
-            		Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkBlue
+			Write-Host "Invoke-GetTokens" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-GetTokens -DomainName ShkudW.com -Graph'" -ForegroundColor DarkCyan
+            		Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkCyan
 		}
 				
             		if (-not $DomainName -and -not $Graph -and -not $ARM){
@@ -256,8 +256,8 @@ function Invoke-CheckCABypass {
         }
 
 		function Help {
-			Write-Host "Invoke-CheckCABypass" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+			Write-Host "Invoke-CheckCABypass" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
 		}
 
             if (-not $DomainName -and -not $RefreshToken){
@@ -413,8 +413,8 @@ function Invoke-FindDynamicGroups {
 
 	
 	param (
-        [Parameter(Mandatory = $false)] [string]$RefreshToken,
-        [Parameter(Mandatory = $false)] [switch]$DeviceCodeFlow,
+        	[Parameter(Mandatory = $false)] [string]$RefreshToken,
+        	[Parameter(Mandatory = $false)] [switch]$DeviceCodeFlow,
 		[Parameter(Mandatory = $false)] [string]$ClientID,
 		[Parameter(Mandatory = $false)] [string]$DomainName,
 		[Parameter(Mandatory = $false)] [string]$ClientSecret
@@ -422,10 +422,10 @@ function Invoke-FindDynamicGroups {
 
 
 		function Help {
-			Write-Host "Invoke-FindDynamicGroups" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-FindDynamicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkBlue
+			Write-Host "Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-FindDynamicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkCyan
+            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
+            Write-Host "         : Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName) {
@@ -733,11 +733,11 @@ function Invoke-FindPublicGroups {
 
 
         function Help {
-			Write-Host "Invoke-FindPublicGroups" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-FindPublicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkBlue
-			Write-Host "Deep flag: Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' | -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' | -DeviceCodeFlow -Deep  " -ForegroundColor DarkBlue
+			Write-Host "Invoke-FindPublicGroups" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-FindPublicGroups -DomainName ShkudW.com -DeviceCodeFlow " -ForegroundColor DarkCyan
+            		Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
+            		Write-Host "         : Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....'" -ForegroundColor DarkCyan
+			Write-Host "Deep flag: Invoke-FindPublicGroups -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' | -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' | -DeviceCodeFlow -Deep  " -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $ClientId -and -not $ClientSecret -and -not $DeviceCodeFlow -and -not $DomainName) {
@@ -1194,13 +1194,13 @@ function Invoke-FindServicePrincipal {
 
     param (
         [string]$RefreshToken,
-	    [string]$DomainName
+	[string]$DomainName
     )
 
 
         function Help {
-			Write-Host "Invoke-FindServicePrincipal" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-FindServicePrincipal -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+			Write-Host "Invoke-FindServicePrincipal" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-FindServicePrincipal -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $DomainName) {
@@ -1214,7 +1214,7 @@ function Invoke-FindServicePrincipal {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+                		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -1398,8 +1398,8 @@ function Invoke-FindUserRole {
 
 
         function Help {
-			Write-Host "Invoke-FindUserRole" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-FindUserRole -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkBlue
+			Write-Host "Invoke-FindUserRole" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-FindUserRole -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......'" -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $DomainName) {
@@ -1413,7 +1413,7 @@ function Invoke-FindUserRole {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+                		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -1589,8 +1589,8 @@ function Invoke-FindUserByWord {
 
 
         function Help {
-			Write-Host "Invoke-FindUserByWord" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-FindUserByWord -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' -Word 'sqladmin' " -ForegroundColor DarkBlue
+			Write-Host "Invoke-FindUserByWord" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-FindUserByWord -DomainName ShkudW.com -RefreshToken '1.AXoAoOlyRwYIfUK5RfM9h......' -Word 'sqladmin' " -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $DomainName -and -not $Word) {
@@ -1741,8 +1741,8 @@ Invoke-GroupMappingFromJWT -jwt <eyJ0eXAiOiJKV1QiLCJhbG...> -GraphAccessToken <e
     )
 
         function Help {
-			Write-Host "Invoke-GroupMappingFromJWT" -ForegroundColor DarkBlue
-			Write-Host "    Usage: Invoke-GroupMappingFromJWT -jwt 'eyJ0eXAiOiJKV1QiLCJhb.....' -GraphAccessToken 'eyJ0eXAiOiJKV1QiLCJub2....' " -ForegroundColor DarkBlue
+			Write-Host "Invoke-GroupMappingFromJWT" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-GroupMappingFromJWT -jwt 'eyJ0eXAiOiJKV1QiLCJhb.....' -GraphAccessToken 'eyJ0eXAiOiJKV1QiLCJub2....' " -ForegroundColor DarkCyan
 		}
 
             if (-not $jwt -and -not $GraphAccessToken) {
@@ -1885,26 +1885,26 @@ function Invoke-MembershipChange {
     #>
 
     param(
-        [Parameter(Mandatory = $false)][string]$RefreshToken,
+        	[Parameter(Mandatory = $false)][string]$RefreshToken,
 		[Parameter(Mandatory = $false)][string]$ClientID,
 		[Parameter(Mandatory = $false)][string]$ClientSecret,
 		[Parameter(Mandatory = $false)][string]$UserID,
 		[string]$DomainName,
-        [Parameter(Mandatory)][ValidateSet("add", "delete")][string]$Action,
-        [string]$GroupIdsInput,
-        [string]$SuccessLogFile = ".\\success_log.txt",
+        	[Parameter(Mandatory)][ValidateSet("add", "delete")][string]$Action,
+        	[string]$GroupIdsInput,
+        	[string]$SuccessLogFile = ".\\success_log.txt",
 		[string]$SuccessRenoveLogFile = ".\\success_Remove_log.txt"
 		
     )
 
         function Help {
-			Write-Host "Invoke-MembershipChange" -ForegroundColor DarkBlue
+			Write-Host "Invoke-MembershipChange" -ForegroundColor DarkYellow
  			Write-Host "    Without getting any 'UserID' it will use you UserID from AccessToken" -ForegroundColor DarkYellow          
-			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
-			Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
+			Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
  			Write-Host "    With getting 'UserID'" -ForegroundColor DarkYellow  
-			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
-            Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkBlue
+			Write-Host "    Usage: Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
+           		Write-Host "         : Invoke-MembershipChange -DomainName ShkudW.com  -UserID <User-ID> -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -GroupIdsInput <GroupID | C:\Path-To-File\Groupids.txt> -Action Add | Delete " -ForegroundColor DarkCyan
 
 
 
@@ -1946,8 +1946,8 @@ function Invoke-MembershipChange {
 
 		function Get-Token-WithRefreshToken {
 		param(
-        [Parameter(Mandatory = $false)][string]$RefreshToken,
-        [Parameter(Mandatory = $false)][string]$TenantID
+        		[Parameter(Mandatory = $false)][string]$RefreshToken,
+        		[Parameter(Mandatory = $false)][string]$TenantID
 		)
 		
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -1964,8 +1964,8 @@ function Invoke-MembershipChange {
 		function Get-Token-WithClientSecret {
 		param(
 			[Parameter(Mandatory = $false)][string]$ClientID,
-		    [Parameter(Mandatory = $false)][string]$ClientSecret,
-            [Parameter(Mandatory = $false)][string]$TenantID
+		    	[Parameter(Mandatory = $false)][string]$ClientSecret,
+            		[Parameter(Mandatory = $false)][string]$TenantID
 
 		)
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
@@ -2161,7 +2161,7 @@ function Invoke-ResourcePermissions {
         [string]$RefreshToken,
         [string]$ClientId,
         [string]$ClientSecret,
-	    [string]$DomainName,
+	[string]$DomainName,
         [switch]$KeyVault,
         [switch]$StorageAccount,
         [switch]$VirtualMachine,
@@ -2222,9 +2222,9 @@ function Invoke-ResourcePermissions {
 
 
         function Help {
-			Write-Host "Invoke-ResourcePermissions" -ForegroundColor DarkBlue   
-			Write-Host "    Usage: Invoke-ResourcePermissions -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkBlue
-			Write-Host "         : Invoke-ResourcePermissions -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkBlue
+			Write-Host "Invoke-ResourcePermissions" -ForegroundColor DarkYellow   
+			Write-Host "    Usage: Invoke-ResourcePermissions -DomainName ShkudW.com -RefreshToken 'eyJ0eXAiOiJKV1QiLCJhb.....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkCyan
+			Write-Host "         : Invoke-ResourcePermissions -DomainName ShkudW.com -ClientId '47d6850f-d3b2...' -ClientSecret 'tsu8Q~KJV9....' -KeyVault | -StorageAccount | -VirtualMachine | -All " -ForegroundColor DarkCyan
 		}
 
             if (-not $RefreshToken -and -not $ClientID -and -not $ClientSecret -and -not $KeyVault -and -not $StorageAccount -and -not $VirtualMachine -and -not $All -and -not $DomainName) {
@@ -3204,9 +3204,9 @@ function Invoke-TAPChanger {
 
 
         function Help {
-			Write-Host "Invoke-TAPChanger" -ForegroundColor DarkBlue
-            Write-Host "[!] You need a privileged account for this action" -ForegroundColor DarkYellow
-			Write-Host "    Usage: Invoke-TAPChanger -AccessToken 'eyJ0eXAiOiJKV1QiLCJub25j.....' -UseTargetID '47d6850f-d3b2...' -Add | -Delete " -ForegroundColor DarkBlue
+			Write-Host "Invoke-TAPChanger" -ForegroundColor DarkYellow
+            		Write-Host "[!] You need a privileged account for this action" -ForegroundColor DarkYellow
+			Write-Host "    Usage: Invoke-TAPChanger -AccessToken 'eyJ0eXAiOiJKV1QiLCJub25j.....' -UseTargetID '47d6850f-d3b2...' -Add | -Delete " -ForegroundColor DarkCyan
 		}
 
             if (-not $AccessToken -and -not $UseTargetID -and -not $Add -and -not $Delete) {
