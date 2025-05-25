@@ -461,7 +461,7 @@ function Invoke-FindDynamicGroups {
 				$response = Invoke-RestMethod -Method GET -Uri "https://login.microsoftonline.com/$DomainName/.well-known/openid-configuration"
 				$TenantID = ($response.issuer -split "/")[3]
 				Write-Host "[#] Found Tenant ID for $DomainName -> $TenantID" -ForegroundColor DarkYellow
-                Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
+                		Write-Host "[>] Using this Tenant ID for actions" -ForegroundColor DarkYellow
 				return $TenantID
 			} catch {
 				Write-Error "[-] Failed to retrieve Tenant ID from domain: $DomainName"
@@ -473,7 +473,7 @@ function Invoke-FindDynamicGroups {
 		
 		function Get-DeviceCodeToken {
 			$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-            $UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+            		$UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 			$headers = @{ 'User-Agent' = $UserAgent }
 			$body = @{
 				"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
@@ -520,18 +520,18 @@ function Invoke-FindDynamicGroups {
 
 			    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
 			    $body = @{
-                    "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-                    "scope"         = "https://graph.microsoft.com/.default"
-                    "grant_type"    = "refresh_token"
-                    "refresh_token" = $RefreshToken
+                    		"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                    		"scope"         = "https://graph.microsoft.com/.default"
+                    		"grant_type"    = "refresh_token"
+                    		"refresh_token" = $RefreshToken
 			    }
 			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body).access_token
 		}
 
 		function Get-Token-WithClientSecret {
-            param(
-                [Parameter(Mandatory = $false)] [string]$ClientID,
-                [Parameter(Mandatory = $false)] [string]$ClientSecret
+            	param(
+                	[Parameter(Mandatory = $false)] [string]$ClientID,
+                	[Parameter(Mandatory = $false)] [string]$ClientSecret
                 
             )
 			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
