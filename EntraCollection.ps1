@@ -46,9 +46,11 @@ function Invoke-GetTokens {
 	#>	
 
 	param(
-		    [Parameter(Mandatory = $false)] [string]$DomainName,
-        	[Parameter(Mandatory = $false)] [switch]$Graph,
-        	[Parameter(Mandatory = $false)] [switch]$ARM,
+		    [string]$DomainName,
+			[string]$ClientID,
+			[string]$ClientSecret,
+        	[switch]$Graph,
+        	[switch]$ARM,
             [switch]$MethodA,
             [switch]$MethodB		
 	)
@@ -59,7 +61,7 @@ function Invoke-GetTokens {
             Write-Host "         : Invoke-GetTokens -DomainName ShkudW.com -ARM'" -ForegroundColor DarkCyan
 		}
 				
-            		if (-not $DomainName -and -not $Graph -and -not $ARM){
+            		if (-not $DomainName -and -not $Graph -and -not $ARM -and -not $ClientID -and -not $ClientSecret){
                 		Help
                 		return
             		}
@@ -84,6 +86,7 @@ function Invoke-GetTokens {
                 		Help
                 		return
             		}
+					
 
 
 		function Get-DomainName {
@@ -102,9 +105,44 @@ function Invoke-GetTokens {
         if($DomainName){$TenantID = Get-DomainName }
 			
 		$UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+		$headers = @{ 'User-Agent' = $UserAgent }
+
+		function Get-Token-WithClientSecret {
+            	param(
+                	[string]$ClientID,
+                	[string]$ClientSecret,
+					[string]$TenantID
+					
+					
+                
+            )
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			if($Graph){
+			$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+			}
+			if($ARM){
+							$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://Management.Azure.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+				
+			}
+		}
+		
+		function Get-Token-WithDeviceCode {
+					[string]$TenantID
 		
 		$deviceCodeUrl = "https://login.microsoftonline.com/common/oauth2/devicecode?api-version=1.0"
-		$headers = @{ 'User-Agent' = $UserAgent }
+		
 
        		$Body = @{
             		"client_id" = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
@@ -177,9 +215,25 @@ function Invoke-GetTokens {
 				Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
 				return
 			}
+			}
 		}
 	}
-
+	
+	if($ClientID -and $ClientSecret -and $DomainName){
+		Get-Token-WithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+	}
+	
+	if($DomainName -and $graph -and -not $ClientSecret -and -not $ClientID){
+		$ClientGraph = Get-Token-WithDeviceCode -TenantID $TenantID
+		Write-Host "Graph Access Token:" -ForegroundColor DarkGreen
+		Write-Host "$ClientGraph" -ForegroundColor DarkGreen
+	}
+	
+	if($DomainName -and $ARM -and -not $ClientSecret -and -not $ClientID){
+		$ClientARM = Get-Token-WithDeviceCode -TenantID $TenantID
+		Write-Host "ARM Access Token:" -ForegroundColor DarkGreen
+		Write-Host "$ClientARM" -ForegroundColor DarkGreen
+	}
 }
 
 <###############################################################################################################################################>
