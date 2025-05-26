@@ -49,9 +49,9 @@ Invoke-CheckCABypass -DomainName ShkudW.com -RefreshToken <your_token>
 - This technique is commonly used in Entra ID Red Team operations to achieve privilege escalation or persistence.
 
 ```powershell
-Invoke-FindDynamicGroups -DomainName contoso.com -RefreshToken <your_token>
-Invoke-FindDynamicGroups -DomainName contoso.com -DeviceCodeFlow
-Invoke-FindDynamicGroups -DomainName contoso.com -ClientId <App-id> -ClientSecret <App-secret>
+Invoke-FindDynamicGroups -DomainName ShkudW.com -RefreshToken <your_token>
+Invoke-FindDynamicGroups -DomainName ShkudW.com -DeviceCodeFlow
+Invoke-FindDynamicGroups -DomainName ShkudW.com -ClientId <App-id> -ClientSecret <App-secret>
 ```
 
 ### `Invoke-FindPublicGroups`
