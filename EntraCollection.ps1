@@ -219,20 +219,25 @@ function Invoke-GetTokens {
 		}
 	}
 	
-	if($ClientID -and $ClientSecret -and $DomainName){
-		Get-Token-WithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
-	}
-	
-	if($DomainName -and $graph -and -not $ClientSecret -and -not $ClientID){
-		$ClientGraph = Get-Token-WithDeviceCode -TenantID $TenantID
+	if($ClientID -and $ClientSecret -and $DomainName -and $Graph){
+		$ClientGraph = Get-Token-WithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
 		Write-Host "Graph Access Token:" -ForegroundColor DarkGreen
 		Write-Host "$ClientGraph" -ForegroundColor DarkGreen
 	}
 	
-	if($DomainName -and $ARM -and -not $ClientSecret -and -not $ClientID){
-		$ClientARM = Get-Token-WithDeviceCode -TenantID $TenantID
-		Write-Host "ARM Access Token:" -ForegroundColor DarkGreen
+	if($ClientID -and $ClientSecret -and $DomainName -and $ARM){
+		$ClientARM = Get-Token-WithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+		Write-Host "ARM Token:" -ForegroundColor DarkGreen
 		Write-Host "$ClientARM" -ForegroundColor DarkGreen
+	}
+	
+	if($DomainName -and $graph -and -not $ClientSecret -and -not $ClientID){
+		Get-Token-WithDeviceCode -TenantID $TenantID
+
+	}
+	
+	if($DomainName -and $ARM -and -not $ClientSecret -and -not $ClientID){
+		Get-Token-WithDeviceCode -TenantID $TenantID
 	}
 }
 
