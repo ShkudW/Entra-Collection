@@ -6,6 +6,218 @@ function Main {
 # == Function: Choose Tenant Input Method ==
 
 
+function Invoke-FindDynamicGroups {
+		
+    <#
+    .SYNOPSIS
+        Identify dynamic groups in the target Entra ID tenant and analyze their membership rules.
+
+    .DESCRIPTION
+        This function enumerates all dynamic groups within the specified Entra ID tenant and inspects their membership rules 
+        to determine if they rely on attributes such as `mail`, `displayName`, or `userPrincipalName`.
+
+        These attributes can potentially be manipulated during external user invitations (e.g., B2B scenarios) to trigger automatic inclusion 
+        into privileged or sensitive dynamic groups. This technique is commonly used in Entra ID Red Team operations to achieve privilege escalation or persistence.
+
+    .PARAMETER DomainName
+        The domain name of the target tenant (e.g., ShkudW.com).
+
+    .PARAMETER RefreshToken
+        A valid refresh token to authenticate the request.
+
+    .PARAMETER DeviceCodeFlow
+        Use this switch to authenticate via device code flow (interactive).
+
+    .PARAMETER ClientId
+        Client ID for service principal authentication.
+
+    .PARAMETER ClientSecret
+        Client secret corresponding to the provided Client ID.
+
+    .EXAMPLE
+        Invoke-FindDynamicGroups -DomainName contoso.com -RefreshToken <your_token>
+        Invoke-FindDynamicGroups -DomainName contoso.com -DeviceCodeFlow
+        Invoke-FindDynamicGroups -DomainName contoso.com -ClientId <App-id> -ClientSecret <App-secret>
+
+    #>
+
+	
+	param (
+        [string]$RefreshToken,
+		[string]$ClientID,
+        [string]$GraphAccessToken,
+        [string]$TenantID,
+		[string]$ClientSecret
+    )
+
+
+
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 'User-Agent' = $UserAgent }
+
+
+		function Get-Token-WithRefreshToken {
+            param(
+                [string]$RefreshToken,
+                [string]$TenantID
+            )
+
+			    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			    $body = @{
+                    		"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                    		"scope"         = "https://graph.microsoft.com/.default"
+                    		"grant_type"    = "refresh_token"
+                    		"refresh_token" = $RefreshToken
+			    }
+			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+		}
+
+		function Get-Token-WithClientSecret {
+            	param(
+                	[string]$ClientID,
+                	[string]$ClientSecret,
+                    [string]$TenantID
+                
+            )
+			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+			$body = @{
+				"client_id"     = $ClientId
+				"client_secret" = $ClientSecret
+				"scope"         = "https://graph.microsoft.com/.default"
+				"grant_type"    = "client_credentials"
+			}
+			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+		}
+
+
+		if (-not $GraphAccessToken) { return }
+
+		if (Test-Path "Dynamic_Groups.txt") {
+			$choice = Read-Host "Dynamic_Groups.txt exists. (D)elete / (A)ppend?"
+			if ($choice -match "^[dD]$") {
+				Remove-Item -Path "Dynamic_Groups.txt" -Force
+			} elseif ($choice -notmatch "^[aA]$") {
+			return
+			}
+		}
+
+		$headers = @{
+			"Authorization"    = "Bearer $GraphAccessToken"
+			"Content-Type"     = "application/json"
+			"ConsistencyLevel" = "eventual"
+			"Prefer"           = "odata.maxpagesize=999"
+            "User-Agent"        = "$UserAgent"
+		}
+
+		$startTime = Get-Date
+		$refreshIntervalMinutes = 7
+		$groupApiUrl = "https://graph.microsoft.com/v1.0/groups?$filter=groupTypes/any(c:c eq 'Unified')&$select=id,displayName,membershipRule&$top=999"
+
+		$totalGroupsScanned = 0
+
+		Write-Host "`n[*] Fetching Dynamic Groups..." -ForegroundColor DarkCyan
+
+    do {
+        $success = $false
+        do {
+            try {
+                $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
+                $success = $true
+            } catch {
+                $statusCode = $_.Exception.Response.StatusCode.value__
+                if ($statusCode -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 7 }
+                    Write-Host "[!] Rate limit hit. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
+                    Start-Sleep -Seconds ([int]$retryAfter)
+                } elseif ($statusCode -eq 401) {
+                    Write-Host "[!] Access token expired, refreshing..." -ForegroundColor DarkYellow
+                    if ($authMethod -eq "refresh") {
+                        $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+                    } elseif ($authMethod -eq "client") {
+                        $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId -TenantID $TenantID
+                    }
+                    if (-not $GraphAccessToken) { return }
+                    $headers["Authorization"] = "Bearer $GraphAccessToken"
+                    $startTime = Get-Date
+                } else {
+                    Write-Host "[-] Unexpected error. Exiting." -ForegroundColor Red
+                    return
+                }
+            }
+        } while (-not $success)
+
+        $groupsBatch = $response.value
+        $batchCount = $groupsBatch.Count
+        $scannedInBatch = 0
+
+			foreach ($group in $groupsBatch) {
+				$groupId = $group.id
+				$groupName = $group.displayName
+				$membershipRule = $group.membershipRule
+
+				if ($membershipRule -ne $null) {
+				
+					Write-Host "[+] $groupName ($groupId) is Dynamic" -ForegroundColor DarkGreen
+
+					$conditions = @()
+					if ($membershipRule -match '\buser\.mail\b') { $conditions += "mail" }
+					if ($membershipRule -match '\buser\.userPrincipalName\b') { $conditions += "userPrincipalName" }
+					if ($membershipRule -match '\buser\.displayName\b') { $conditions += "displayName" }
+
+					if ($conditions.Count -gt 0) {						
+						  if ($membershipRule -match "@") {
+							continue  
+						}
+						$joined = ($conditions -join " AND ")
+						Write-Host "    [!] Contains sensitive rule: $joined" -ForegroundColor Yellow
+						Write-Host "      [$groupName] => $membershipRule" -ForegroundColor DarkCyan
+						$outputLine = "      [Sensitive Rule] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : $joined : $membershipRule"
+					} else {
+
+					}
+					
+			        try {
+						Add-Content -Path "Dynamic_Groups.txt" -Value $outputLine
+					} catch {
+						Write-Host "[!] Failed to write to file: $_" -ForegroundColor Red
+					}
+				}
+
+				$scannedInBatch++
+				$totalGroupsScanned++
+				$percent = [math]::Round(($scannedInBatch / $batchCount) * 100)
+				Write-Progress -Activity "Scanning Dynamic Groups..." -Status "$percent% Complete in current batch" -PercentComplete $percent
+			}
+
+        if ((New-TimeSpan -Start $startTime).TotalMinutes -ge $refreshIntervalMinutes) {
+            Write-Host "[*] Refresh interval reached, refreshing token..." -ForegroundColor DarkYellow
+            if ($authMethod -eq "refresh") {
+                $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+            } elseif ($authMethod -eq "client") {
+                $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -ClientSecret $ClientSecret
+            }
+            if (-not $GraphAccessToken) { return }
+            $headers["Authorization"] = "Bearer $GraphAccessToken"
+            $startTime = Get-Date
+        }
+
+        $groupApiUrl = $response.'@odata.nextLink'
+
+    } while ($groupApiUrl)
+
+    Write-Host "`n[*] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Dynamic group  save to Dynamic_groups.txt" -ForegroundColor DarkCyan
+}
+
+
+
+
+
+
+
+
+
 function Banner {
 
         Write-Host "##############################################################################################" -ForegroundColor Cyan
@@ -439,14 +651,30 @@ function Banner {
     function Show-MainMenu {
         while ($true) {
             Write-Host "`n==== Entra Framework Menu ====" -ForegroundColor DarkCyan
-            Write-Host "1) Graph - Show" -ForegroundColor DarkYellow
+            Write-Host "1) Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
             Write-Host "2) ARM -Show" -ForegroundColor DarkYellow
             Write-Host "3) RefreshToken" -ForegroundColor DarkYellow
             Write-Host "4) Client ID + Client Secret" -ForegroundColor DarkYellow
             $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
 
             switch ($choice) {
-                "1" { Write-Host "$Global:GraphAccessToken" -ForegroundColor Cyan }
+                "1" {
+                    $RefreshToken = $Global:RefreshToken
+                    $ClientID = $Global:clientID
+                    $ClientSecret = $Global:ClientSecret
+                    $GraphAccessToken = $Global:GraphAccessToken
+                    $TenantID = $Global:TenantID
+                    if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
+
+                        Invoke-FindDynamicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID
+                    }
+                    if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
+
+                        Invoke-FindDynamicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID
+                    }
+                     
+                    
+                    }
                 "2" { Write-Host "$Global:ARMAccessToken" -ForegroundColor Cyan }
                 "3" { Write-Host "$Global:RefreshToken" -ForegroundColor Cyan }
                 "4" { Write-Host "$Global:clientID  , $Global:ClientSecret" -ForegroundColor Cyan }
