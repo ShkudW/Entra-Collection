@@ -5,6 +5,348 @@
 function EntraCollection {
 
 
+function Invoke-FindPublicGroups {
+
+    param (
+        [string]$RefreshToken, 
+        [string]$ClientID, 
+        [string]$GraphAccessToken, 
+        [string]$TenantID,
+        [string]$TenantName,
+        [string]$ClientSecret,
+        [switch]$Deep		
+    )
+
+
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+	
+	
+    function Get-Token-WithRefreshToken {
+        param( 
+            [string]$RefreshToken, 
+            [string]$TenantID 
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+	    $body = @{
+            "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            "scope"         = "https://graph.microsoft.com/.default"
+            "grant_type"    = "refresh_token"
+            "refresh_token" = $RefreshToken
+		}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+	}
+
+	function Get-Token-WithClientSecret {
+        param(
+            [string]$ClientID,
+            [string]$ClientSecret,
+            [string]$TenantID   
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+		$body = @{
+			"client_id"     = $ClientId
+			"client_secret" = $ClientSecret
+			"scope"         = "https://graph.microsoft.com/.default"
+			"grant_type"    = "client_credentials"
+			}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+		}
+
+
+	if (-not $GraphAccessToken) { return }
+
+    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+        $authMethod = "client"
+    }
+    
+    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+        $authMethod = "refresh"
+    }
+
+    if (Test-Path "Public_Groups.txt") {
+        $choice = Read-Host "Public_Groups.txt exists. (D)elete / (A)ppend?"
+        if ($choice -match "^[dD]$") {
+            Remove-Item -Path "Public_Groups.txt" -Force
+        } elseif ($choice -notmatch "^[aA]$") {
+            return
+        }
+    }
+
+    function Invoke-With-Retry {
+        param (
+            [string]$Url
+        )
+        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+        $headers = @{ 
+            'User-Agent' = $UserAgent
+            'Authorization' = "Bearer $GraphAccessToken"
+            }
+        $success = $false
+        $response = $null
+            do {
+                try {
+                    $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
+                    $success = $true
+                } catch {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    if ($statusCode -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 7 }
+                        Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds ([int]$retryAfter)
+                    } else {
+                        Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
+                        return $null
+                    }
+                }
+            } while (-not $success)
+            return $response
+        }
+
+	
+    function Get-SensitiveConversations {
+        param (
+            [string]$GroupId,
+            [string]$GroupName,
+            [string]$AccessToken
+        )
+
+        if (-not (Test-Path "Conversations")) {
+            New-Item -ItemType Directory -Path "Conversations" | Out-Null
+        }
+
+        $headers = @{ 
+            'Authorization' = "Bearer $AccessToken" 
+            'user-agent'    = "$UserAgent"
+        }
+        
+        $keywords = @("admin", "accesstoken", "refreshtoken", "token", "password", "secret")
+
+        function Invoke-With-Retry {
+            param (
+                [string]$Url
+            )
+            
+            $success = $false
+            $response = $null
+            do {
+                try {
+                    $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
+                    $success = $true
+                } 
+                catch {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    if ($statusCode -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 7 }
+                    Write-Host "[!] Rate limit hit ($Url). Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds ([int]$retryAfter)
+                    } 
+                    else {
+                        Write-Host "[-] Error in request to $Url" -ForegroundColor DarkGray
+                        return $null
+                    }
+                }
+                } while (-not $success)
+                    return $response
+        }
+
+        $convos = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations"
+        if (-not $convos) { return }
+        foreach ($convo in $convos.value) {
+            $threads = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads"
+            if (-not $threads) { continue }
+            foreach ($thread in $threads.value) {
+                $posts = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/groups/$GroupId/conversations/$($convo.id)/threads/$($thread.id)/posts"
+                if (-not $posts) { continue }
+                foreach ($post in $posts.value) {
+                    $rawHtml = $post.body.content
+                    $rawName = "$GroupId-$($convo.id)-$($thread.id)"
+                    $cleanName = ($rawName -replace '[^\w\-]', '') 
+                    if ($cleanName.Length -gt 100) {
+                        $cleanName = $cleanName.Substring(0, 100)
+                    }
+                    $fileName = "$cleanName.html"
+                    $filePath = Join-Path -Path "Conversations" -ChildPath $fileName
+
+                    Add-Type -AssemblyName System.Web
+                    $decoded = [System.Web.HttpUtility]::HtmlDecode($rawHtml)
+                    $plainText = ($decoded -replace '<[^>]+>', '') -replace '\s{2,}', ' '
+
+                    foreach ($kw in $keywords) {
+                        if ($plainText -match "(?i)\b$kw\b.{0,200}") {
+                            $matchLine = $matches[0]
+                            Write-Host "[!!!] Suspicious content found in group '$GroupName': $kw" -ForegroundColor Red
+                            Write-Host "`t--> $matchLine" -ForegroundColor Gray
+                            Add-Content -Path "Public_Groups.txt" -Value "[DEAP] $GroupName ($GroupId) | keyword: $kw"
+                            Add-Content -Path "Public_Groups.txt" -Value "`t--> $matchLine"
+                            Add-Content -Path "Public_Groups.txt" -Value "`t--> Saved full HTML: Conversations\$fileName"
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+	
+	function Get-GroupsWithDirectoryRoles {
+        param ($AccessToken)
+
+        $headers = @{ Authorization = "Bearer $AccessToken" }
+        $roles = Invoke-With-Retry -Url "https://graph.microsoft.com/v1.0/directoryRoles" -Headers $headers
+
+        $GroupIdsWithRoles = @{}
+        $ProcessedRoleIds = @{}
+
+        foreach ($role in $roles.value) {
+            $roleId = $role.id
+            if ($ProcessedRoleIds.ContainsKey($roleId)) { continue }
+
+            $memberUrl = "https://graph.microsoft.com/v1.0/directoryRoles/$roleId/members"
+            $members = Invoke-With-Retry -Url $memberUrl -Headers $headers
+            Start-Sleep -Milliseconds 300
+
+            foreach ($member in $members.value) {
+                if ($member.'@odata.type' -eq "#microsoft.graph.group") {
+                        $GroupIdsWithRoles[$member.id] = $role.displayName
+                }
+            }
+
+            $ProcessedRoleIds[$roleId] = $true
+        }
+
+        return $GroupIdsWithRoles
+    }
+
+    $headers = @{
+        "Authorization"    = "Bearer $GraphAccessToken"
+        "Content-Type"     = "application/json"
+        "ConsistencyLevel" = "eventual"
+        "Prefer"           = "odata.maxpagesize=999"
+        "user-agent"    = "$UserAgent"
+    }
+        
+    $startTime = Get-Date
+    $refreshIntervalMinutes = 7
+    $groupApiUrl = "https://graph.microsoft.com/v1.0/groups?$filter=groupTypes/any(c:c eq 'Unified')&$select=id,displayName,visibility&$top=999"
+
+    $totalGroupsScanned = 0
+
+    Write-Host "[!!!]Starting To Enumerate O365 Public Groups on $TenantName" -ForegroundColor DarkCyan
+
+        $GroupIdToRoleMap = @{}
+        $success1 = $false
+            do {
+                try {
+                    Write-Host "[!!] Fetching directory role assignments" -ForegroundColor DarkCyan
+                    $GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
+                    $success1 = $true
+                } catch {
+                    $statusCode = $_.Exception.Response.StatusCode.value__
+                    if ($statusCode -eq 429) {
+                        $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                        if (-not $retryAfter) { $retryAfter = 7 }
+                        Write-Host "[!] Rate limit hit during role mapping. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
+                        Start-Sleep -Seconds ([int]$retryAfter)
+                    } elseif ($statusCode -eq 401) {
+                        Write-Host "[!] Token expired while retrieving roles, refreshing token..." -ForegroundColor Yellow
+                        if ($authMethod -eq "refresh") {
+                            $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+                        } elseif ($authMethod -eq "client") {
+                            $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
+                        }
+                        if (-not $GraphAccessToken) { return }
+                        $headers["Authorization"] = "Bearer $GraphAccessToken"
+                    } else {
+                        Write-Host "[-] Unhandled error during role mapping. Exiting." -ForegroundColor Red
+                        return
+                    }
+                }
+            } while (-not $success1)
+	
+            do {
+                $success = $false
+                do {
+                    try {
+                        $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
+                        $success = $true
+                    } catch {
+                        $statusCode = $_.Exception.Response.StatusCode.value__
+                        if ($statusCode -eq 429) {
+                            $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                            if (-not $retryAfter) { $retryAfter = 7 }
+                            Write-Host "[!] Rate limit hit. Sleeping for $retryAfter seconds..." -ForegroundColor DarkYellow
+                            Start-Sleep -Seconds ([int]$retryAfter)
+                        } elseif ($statusCode -eq 401) {
+                            Write-Host "[!] Access token expired, refreshing..." -ForegroundColor DarkYellow
+                            if ($authMethod -eq "refresh") {
+                                $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+                            } elseif ($authMethod -eq "client") {
+                                $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
+                            }
+                            if (-not $GraphAccessToken) { return }
+                                $headers["Authorization"] = "Bearer $GraphAccessToken"
+                                $startTime = Get-Date
+                        } else {
+                            Write-Host "[-] Unexpected error. Exiting." -ForegroundColor Red
+                            return
+                         }
+                    }
+                } while (-not $success)
+
+        $groupsBatch = $response.value
+        $batchCount = $groupsBatch.Count
+        $scannedInBatch = 0
+
+
+        foreach ($group in $groupsBatch) {
+            $groupId = $group.id
+            $groupName = $group.displayName
+            $visibility = $group.visibility
+			
+			if ($visibility -eq "Public") {
+                if ($GroupIdToRoleMap.ContainsKey($groupId)) {
+                    Write-Host "[!!!] $groupName ($groupId) is Public AND has Directory Role: $($GroupIdToRoleMap[$groupId])" -ForegroundColor Yellow
+                    "[Privileged] $($groupName.PadRight(30)) : $($groupId.PadRight(40)) : Role = $($GroupIdToRoleMap[$groupId])" | Add-Content -Path "Public_Groups.txt"
+                } else {
+                    Write-Host "[+] $groupName ($groupId) is Public" -ForegroundColor DarkGreen
+                    "$($groupName.PadRight(30)) : $($groupId.PadRight(40))" | Add-Content -Path "Public_Groups.txt"
+                }
+				if ($Deep) {
+					Get-SensitiveConversations -GroupId $groupId -GroupName $groupName -AccessToken $GraphAccessToken
+				}
+            }
+
+            $scannedInBatch++
+            $totalGroupsScanned++
+            $percent = [math]::Round(($scannedInBatch / $batchCount) * 100)
+            Write-Progress -Activity "Scanning Public Groups..." -Status "$percent% Complete in current batch" -PercentComplete $percent
+        }
+
+
+        if ((New-TimeSpan -Start $startTime).TotalMinutes -ge $refreshIntervalMinutes) {
+            Write-Host "[*] Refresh interval reached, refreshing token..." -ForegroundColor DarkYellow
+            if ($authMethod -eq "refresh") {
+                $GraphAccessToken = Get-Token-WithRefreshToken -RefreshToken $RefreshToken
+            } elseif ($authMethod -eq "client") {
+                $GraphAccessToken = Get-Token-WithClientSecret -ClientId $ClientId -SecretId $SecretId
+            }
+            if (-not $GraphAccessToken) { return }
+            $headers["Authorization"] = "Bearer $GraphAccessToken"
+            $startTime = Get-Date
+        }
+		
+        $groupApiUrl = $response.'@odata.nextLink'
+
+    } while ($groupApiUrl)
+
+    Write-Host "`n[>] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Public group ids save to Public_Groups.txt" -ForegroundColor DarkCyan
+}
+
+
+
 <#################################################################################################################################################>
 function Invoke-FindDynamicGroups {	
     param (
@@ -657,7 +999,7 @@ function Banner {
         while ($true) {
             Write-Host "`n==== Entra Framework Menu ====" -ForegroundColor DarkCyan
             Write-Host "1) Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
-            Write-Host "2) ARM -Show" -ForegroundColor DarkYellow
+            Write-Host "2) Invoke-PublicGroups" -ForegroundColor DarkYellow
             Write-Host "3) RefreshToken" -ForegroundColor DarkYellow
             Write-Host "4) Client ID + Client Secret" -ForegroundColor DarkYellow
             $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
@@ -678,10 +1020,25 @@ function Banner {
 
                         Invoke-FindDynamicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }
-                     
-                    
                     }
-                "2" { Write-Host "$Global:ARMAccessToken" -ForegroundColor Cyan }
+
+                "2" { 
+                    $RefreshToken = $Global:RefreshToken
+                    $ClientID = $Global:clientID
+                    $ClientSecret = $Global:ClientSecret
+                    $GraphAccessToken = $Global:GraphAccessToken
+                    $TenantID = $Global:TenantID
+                    $TenantName = $Global:TenantName
+                    if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
+
+                        Invoke-PublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                    }
+                    if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
+
+                        Invoke-PublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                    }                   
+                    }
+                    
                 "3" { Write-Host "$Global:RefreshToken" -ForegroundColor Cyan }
                 "4" { Write-Host "$Global:clientID  , $Global:ClientSecret" -ForegroundColor Cyan }
                 "5" { break }
