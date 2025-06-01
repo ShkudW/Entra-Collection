@@ -695,7 +695,6 @@ function Banner {
                                 } catch {
                                     Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
                                 }
-
                                 try {
                                     $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                                     $ARMToken = $refreshResponseARM.access_token
@@ -704,51 +703,49 @@ function Banner {
                                 } catch {
                                     Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
                                 }
-                            if ($GraphToken -or $ARMToken) {
-                            if ($DecodedGraph) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
-                                if ($DecodedGraph.upn) {
-                                    Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
-                                }
-                                if ($DecodedGraph.scp) {
-                                    Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
-                                }
-                                if ($DecodedGraph.roles) {
-                                    Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
-                                }
-                                Write-Host ""
+                                if ($GraphToken -or $ARMToken) {
+                                    if ($DecodedGraph) {
+                                    Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                                    if ($DecodedGraph.upn) {
+                                        Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
+                                    }
+                                    if ($DecodedGraph.scp) {
+                                        Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
+                                    }
+                                    if ($DecodedGraph.roles) {
+                                        Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
+                                    }
+                                    Write-Host ""
+                                    $CurrentUPN = $DecodedGraph.upn
+                                    $Scopes = $DecodedGraph.scp -split " " 
+                                    $Global:Identities += [PSCustomObject]@{
+                                        UPN             = $CurrentUPN 
+                                        GraphToken      = $GraphToken
+                                        ARMToken        = $ARMToken
+                                        Scopes          = $Scopes
+                                        RefreshToken    = $RefreshToken 
+                                    }                      
+                                }  
 
-                            $CurrentUPN = $DecodedGraph.upn
-                            $Scopes = $DecodedGraph.scp -split " " 
-                            $Global:Identities += [PSCustomObject]@{
-                                    UPN             = $CurrentUPN 
-                                    GraphToken      = $GraphToken
-                                    ARMToken        = $ARMToken
-                                    Scopes          = $Scopes
-                                    RefreshToken    = $RefreshToken 
-                                }                      
-                        }
+                                if ($DecodedARM) {
+                                    Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
 
-
-                            if ($DecodedARM) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
-
-                                if ($DecodedARM.upn) {
-                                    Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
-                                } 
-                                if ($DecodedARM.scp) {
-                                    Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                                    if ($DecodedARM.upn) {
+                                        Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
+                                    } 
+                                    if ($DecodedARM.scp) {
+                                        Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                                    }
+                                    if ($DecodedARM.roles) {
+                                        Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                                    }
+                                    Write-Host ""
                                 }
-                                if ($DecodedARM.roles) {
-                                    Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
-                                }
-                                Write-Host ""
-                            }
-                        return $true
-                    }   
-                    }catch {
-                        Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
-			            return $null
+                            return $true
+                            }   
+                    }  catch {
+                            Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
+                        return $null
                     }
                     
                 
