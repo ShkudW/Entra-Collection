@@ -300,6 +300,16 @@ function Banner {
             }
         }
 
+        $sensitiveScopes = @(
+            "Directory.ReadWrite.All",
+            "Directory.AccessAsUser.All",
+            "RoleManagement.ReadWrite.Directory",
+            "User.ReadWrite.All",
+            "Application.ReadWrite.All",
+            "Group.ReadWrite.All",
+            "PrivilegedAccess.ReadWrite.AzureAD",
+            "Policy.ReadWrite.ConditionalAccess"
+        )
         $Global:Identities = @()
 
 
@@ -349,7 +359,7 @@ function Banner {
                                     Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
                                 }
                                 if ($DecodedGraph.scp) {
-                                    Write-Host "  Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
+                                    Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
                                 }
                                 if ($DecodedGraph.roles) {
                                     Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
@@ -460,7 +470,7 @@ function Banner {
                                     Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
                                 } 
                                 if ($DecodedGraph.scp) {
-                                    Write-Host " Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
+                                    Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
                                 }
                                 if ($DecodedGraph.roles) {
                                     Write-Host "  oles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
@@ -480,7 +490,7 @@ function Banner {
 
                             }
                             if ($DecodedARM) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                                Write-Host "`n[+] Identity Info Extracted from Access Token (ARM):" -ForegroundColor Cyan
 
                                 if ($DecodedARM.upn) {
                                     Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
@@ -565,7 +575,16 @@ function Banner {
                             Write-Host "  App-Name:        $($DecodedGraph.app_displayname)" -ForegroundColor Green
                         } 
                         if ($DecodedGraph.scp) {
-                            Write-Host "  Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
+                            Write-Host "  Scopes:    " -NoNewline
+                            $ScopesList = $DecodedGraph.scp -split " "
+                            foreach ($scope in $ScopesList) {
+                                if ($sensitiveScopes -contains $scope) {
+                                    Write-Host "$scope " -ForegroundColor Red -NoNewline
+                                } else {
+                                    Write-Host "$scope " -ForegroundColor Yellow -NoNewline
+                                }
+                            }
+                            Write-Host ""
                         }
                         if ($DecodedGraph.roles) {
                             Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
