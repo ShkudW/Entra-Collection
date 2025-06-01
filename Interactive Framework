@@ -1022,13 +1022,23 @@ function Banner {
                     }
                     }
 
-                "2" { 
+                "2" {
+                    Write-Host "Do You want Deep search with conversations searching? y,n" -ForegroundColor DarkCyan
+                    $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
                     $RefreshToken = $Global:RefreshToken
                     $ClientID = $Global:clientID
                     $ClientSecret = $Global:ClientSecret
                     $GraphAccessToken = $Global:GraphAccessToken
                     $TenantID = $Global:TenantID
                     $TenantName = $Global:TenantName
+                    if($choice -eq "y"){
+                        if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
+                            Invoke-PublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
+                        }
+                        if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
+                            Invoke-PublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
+                        }      
+                    }
                     if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
 
                         Invoke-PublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
@@ -1038,7 +1048,7 @@ function Banner {
                         Invoke-PublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }                   
                     }
-                    
+
                 "3" { Write-Host "$Global:RefreshToken" -ForegroundColor Cyan }
                 "4" { Write-Host "$Global:clientID  , $Global:ClientSecret" -ForegroundColor Cyan }
                 "5" { break }
