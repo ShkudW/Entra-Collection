@@ -6,117 +6,77 @@ function Main {
 # == Function: Choose Tenant Input Method ==
 
 
-function Invoke-FindDynamicGroups {
-		
-    <#
-    .SYNOPSIS
-        Identify dynamic groups in the target Entra ID tenant and analyze their membership rules.
-
-    .DESCRIPTION
-        This function enumerates all dynamic groups within the specified Entra ID tenant and inspects their membership rules 
-        to determine if they rely on attributes such as `mail`, `displayName`, or `userPrincipalName`.
-
-        These attributes can potentially be manipulated during external user invitations (e.g., B2B scenarios) to trigger automatic inclusion 
-        into privileged or sensitive dynamic groups. This technique is commonly used in Entra ID Red Team operations to achieve privilege escalation or persistence.
-
-    .PARAMETER DomainName
-        The domain name of the target tenant (e.g., ShkudW.com).
-
-    .PARAMETER RefreshToken
-        A valid refresh token to authenticate the request.
-
-    .PARAMETER DeviceCodeFlow
-        Use this switch to authenticate via device code flow (interactive).
-
-    .PARAMETER ClientId
-        Client ID for service principal authentication.
-
-    .PARAMETER ClientSecret
-        Client secret corresponding to the provided Client ID.
-
-    .EXAMPLE
-        Invoke-FindDynamicGroups -DomainName contoso.com -RefreshToken <your_token>
-        Invoke-FindDynamicGroups -DomainName contoso.com -DeviceCodeFlow
-        Invoke-FindDynamicGroups -DomainName contoso.com -ClientId <App-id> -ClientSecret <App-secret>
-
-    #>
-
-	
-	param (
-        [string]$RefreshToken,
-		[string]$ClientID,
-        [string]$GraphAccessToken,
+function Invoke-FindDynamicGroups {	
+    param (
+        [string]$RefreshToken, 
+        [string]$ClientID, 
+        [string]$GraphAccessToken, 
         [string]$TenantID,
-		[string]$ClientSecret
+        [string]$TenantName,
+        [string]$ClientSecret
     )
 
-
-
-        $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
-        $headers = @{ 'User-Agent' = $UserAgent }
-
-
-		function Get-Token-WithRefreshToken {
-            param(
-                [string]$RefreshToken,
-                [string]$TenantID
-            )
-
-			    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-			    $body = @{
-                    		"client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-                    		"scope"         = "https://graph.microsoft.com/.default"
-                    		"grant_type"    = "refresh_token"
-                    		"refresh_token" = $RefreshToken
-			    }
-			    return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+        
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+		
+    function Get-Token-WithRefreshToken {
+        param( 
+            [string]$RefreshToken, 
+            [string]$TenantID 
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+	    $body = @{
+            "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            "scope"         = "https://graph.microsoft.com/.default"
+            "grant_type"    = "refresh_token"
+            "refresh_token" = $RefreshToken
 		}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+	}
 
-		function Get-Token-WithClientSecret {
-            	param(
-                	[string]$ClientID,
-                	[string]$ClientSecret,
-                    [string]$TenantID
-                
-            )
-			$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
-			$body = @{
-				"client_id"     = $ClientId
-				"client_secret" = $ClientSecret
-				"scope"         = "https://graph.microsoft.com/.default"
-				"grant_type"    = "client_credentials"
+	function Get-Token-WithClientSecret {
+        param(
+            [string]$ClientID,
+            [string]$ClientSecret,
+            [string]$TenantID   
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+		$body = @{
+			"client_id"     = $ClientId
+			"client_secret" = $ClientSecret
+			"scope"         = "https://graph.microsoft.com/.default"
+			"grant_type"    = "client_credentials"
 			}
-			return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
 		}
 
+	if (-not $GraphAccessToken) { return }
 
-		if (-not $GraphAccessToken) { return }
-
-		if (Test-Path "Dynamic_Groups.txt") {
-			$choice = Read-Host "Dynamic_Groups.txt exists. (D)elete / (A)ppend?"
-			if ($choice -match "^[dD]$") {
-				Remove-Item -Path "Dynamic_Groups.txt" -Force
-			} elseif ($choice -notmatch "^[aA]$") {
+	if (Test-Path "Dynamic_Groups.txt") {
+		$choice = Read-Host "Dynamic_Groups.txt exists. (D)elete / (A)ppend?"
+		if ($choice -match "^[dD]$") {
+			Remove-Item -Path "Dynamic_Groups.txt" -Force
+		} elseif ($choice -notmatch "^[aA]$") {
 			return
-			}
 		}
+	}
 
-		$headers = @{
-			"Authorization"    = "Bearer $GraphAccessToken"
-			"Content-Type"     = "application/json"
-			"ConsistencyLevel" = "eventual"
-			"Prefer"           = "odata.maxpagesize=999"
-            "User-Agent"        = "$UserAgent"
-		}
+	$headers = @{
+		"Authorization"    = "Bearer $GraphAccessToken"
+		"Content-Type"     = "application/json"
+		"ConsistencyLevel" = "eventual"
+		"Prefer"           = "odata.maxpagesize=999"
+        "User-Agent"        = "$UserAgent"
+	}
 
-		$startTime = Get-Date
-		$refreshIntervalMinutes = 7
-		$groupApiUrl = "https://graph.microsoft.com/v1.0/groups?$filter=groupTypes/any(c:c eq 'Unified')&$select=id,displayName,membershipRule&$top=999"
+	$startTime = Get-Date
+	$refreshIntervalMinutes = 7
+	$groupApiUrl = "https://graph.microsoft.com/v1.0/groups?$filter=groupTypes/any(c:c eq 'Unified')&$select=id,displayName,membershipRule&$top=999"
 
-		$totalGroupsScanned = 0
+	$totalGroupsScanned = 0
 
-		Write-Host "`n[*] Fetching Dynamic Groups..." -ForegroundColor DarkCyan
-
+	Write-Host "[!!!]Starting To Enumerate Dynamic Groups on $TenantName" -ForegroundColor DarkYellow
     do {
         $success = $false
         do {
@@ -207,15 +167,8 @@ function Invoke-FindDynamicGroups {
     } while ($groupApiUrl)
 
     Write-Host "`n[*] Finished scanning. Total Groups Scanned: $totalGroupsScanned" -ForegroundColor DarkCyan
-    Write-Host "`n[>] Dynamic group  save to Dynamic_groups.txt" -ForegroundColor DarkCyan
+    Write-Host "`n[>] Dynamic group saved to Dynamic_groups.txt" -ForegroundColor DarkCyan
 }
-
-
-
-
-
-
-
 
 
 function Banner {
@@ -251,13 +204,13 @@ function Banner {
 
         function Get-TenantIdentity {
             param ($Method)
-
             if ($Method -eq "1") {
                 while ($true) {
                     $TenantName = Read-Host "[*] Enter your Tenant Name"
                     if (![string]::IsNullOrWhiteSpace($TenantName)) {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantName/.well-known/openid-configuration" -ErrorAction Stop
+                            $Global:TenantName = $TenantName
                             return @{ TenantID = ($resp.issuer -split '/')[3]; Input = $TenantName; Source = "Domain" }
                         } catch {
                             Write-Host "[!] Invalid Tenant Domain." -ForegroundColor DarkRed
@@ -664,13 +617,14 @@ function Banner {
                     $ClientSecret = $Global:ClientSecret
                     $GraphAccessToken = $Global:GraphAccessToken
                     $TenantID = $Global:TenantID
+                    $TenantName = $Global:TenantName
                     if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
 
-                        Invoke-FindDynamicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID
+                        Invoke-FindDynamicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }
                     if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
 
-                        Invoke-FindDynamicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID
+                        Invoke-FindDynamicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }
                      
                     
