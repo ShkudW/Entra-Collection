@@ -999,7 +999,7 @@ function Banner {
         while ($true) {
             Write-Host "`n==== Entra Framework Menu ====" -ForegroundColor DarkCyan
             Write-Host "1) Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
-            Write-Host "2) Invoke-PublicGroups" -ForegroundColor DarkYellow
+            Write-Host "2) Invoke-FindPublicGroups" -ForegroundColor DarkYellow
             Write-Host "3) RefreshToken" -ForegroundColor DarkYellow
             Write-Host "4) Client ID + Client Secret" -ForegroundColor DarkYellow
             $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
