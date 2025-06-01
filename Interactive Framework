@@ -202,253 +202,257 @@ function Main {
             		    "resource"     = "https://graph.microsoft.com"
                     }
                     $authResponse = Invoke-RestMethod -Method POST -Uri $deviceCodeUrl -Headers $headers -Body $Body
-                $deviceCode = $authResponse.device_code
-                $code = $authResponse.user_code
-                Write-Host "`n[#] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
-                Write-Host " $code" -ForegroundColor DarkGray
-                Start-Sleep -Seconds 5
-                Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
+                    $deviceCode = $authResponse.device_code
+                    $code = $authResponse.user_code
+                    Write-Host "`n[#] Browser will open in 5 sec, Please enter this code:" -ForegroundColor DarkYellow -NoNewline
+                    Write-Host " $code" -ForegroundColor DarkGray
+                    Start-Sleep -Seconds 5
+                    Start-Process "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" -ArgumentList "https://microsoft.com/devicelogin"
 
-                $tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
-                $tokenBody = @{
-                "scope"      = "openid"
-                "client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-                "grant_type" = "urn:ietf:params:oauth:grant-type:device_code"
-                "code"       = $deviceCode
-                }
-                while ($true) {
-                    try {
-                        $tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop -ContentType "application/x-www-form-urlencoded"
-                        $RefreshToken = $tokenResponse.refresh_token
-                        Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
-    				    Write-Host "[>] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkGray
-                        Write-Host ""
-
-                        $url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token?api-version=1.0"
-                        $refreshBodyGraph = @{
-                            "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-                            "scope"         = "https://graph.microsoft.com/.default"
-                            "grant_type"    = "refresh_token"
-                            "refresh_token" = $RefreshToken
-                        }
-                        $refreshBodyARM = @{
-                            "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
-                            "scope"         = "https://management.azure.com/.default"
-                            "grant_type"    = "refresh_token"
-                            "refresh_token" = $RefreshToken
-                        }
-                    
+                    $tokenUrl = "https://login.microsoftonline.com/common/oauth2/token?api-version=1.0"
+                    $tokenBody = @{
+                        "scope"      = "openid"
+                        "client_id"  = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                        "grant_type" = "urn:ietf:params:oauth:grant-type:device_code"
+                        "code"       = $deviceCode
+                    }
+                    while ($true) {
                         try {
-                            $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                            $GraphToken = $refreshResponseGraph.access_token
-                            $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                            $ARMToken = $refreshResponseARM.access_token
-                            $Global:GraphAccessToken = $GraphToken
-                            $Global:ARMAccessToken = $ARMToken
+                            $tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenUrl -Headers $headers -Body $tokenBody -ErrorAction Stop -ContentType "application/x-www-form-urlencoded"
+                            $RefreshToken = $tokenResponse.refresh_token
+                            Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
+                            Write-Host "[>] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkGray
 
-                            $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                            $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
+                            $url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token?api-version=1.0"
+                            $refreshBodyGraph = @{
+                                "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                                "scope"         = "https://graph.microsoft.com/.default"
+                                "grant_type"    = "refresh_token"
+                                "refresh_token" = $RefreshToken
+                            }
+                            $refreshBodyARM = @{
+                                "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+                                "scope"         = "https://management.azure.com/.default"
+                                "grant_type"    = "refresh_token"
+                                "refresh_token" = $RefreshToken
+                            }
+                            try {
+                                $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                                $GraphToken = $refreshResponseGraph.access_token
+                                $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                                $ARMToken = $refreshResponseARM.access_token
+                                $Global:GraphAccessToken = $GraphToken
+                                $Global:ARMAccessToken = $ARMToken
+
+                                $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
+                                $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
                             if ($DecodedGraph) {
                                 Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
 
                                 if ($DecodedGraph.upn) {
-                                    Write-Host "    👤 UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
-                                } elseif ($DecodedGraph.unique_name) {
-                                    Write-Host "    👤 UniqueName: $($DecodedGraph.unique_name)" -ForegroundColor Green
-                                }
-
+                                    Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
+                                } 
                                 if ($DecodedGraph.scp) {
-                                    Write-Host "    🔐 Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
+                                    Write-Host " Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
                                 }
-
                                 if ($DecodedGraph.roles) {
-                                    Write-Host "    🔐 Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
+                                    Write-Host "  oles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
                                 }
-
                                 Write-Host ""
+                                
+                                $CurrentUPN = $DecodedGraph.upn
+                                $Scopes = $DecodedGraph.scp -split " " 
+                                $Global:Identities += [PSCustomObject]@{
+                                    UPN             = $CurrentUPN 
+                                    GraphToken      = $GraphToken
+                                    ARMToken        = $ARMToken
+                                    Scopes          = $Scopes 
+                                }                      
+
                             }
-
-
                             if ($DecodedARM) {
                                 Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
 
                                 if ($DecodedARM.upn) {
-                                    Write-Host "    👤 UPN:        $($DecodedARM.upn)" -ForegroundColor Green
-                                } elseif ($DecodedARM.unique_name) {
-                                    Write-Host "    👤 UniqueName: $($DecodedARM.unique_name)" -ForegroundColor Green
-                                }
-
+                                    Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
+                                }  
                                 if ($DecodedARM.scp) {
-                                    Write-Host "    🔐 Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                                    Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
                                 }
-
                                 if ($DecodedARM.roles) {
-                                    Write-Host "    🔐 Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                                    Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
                                 }
-
                                 Write-Host ""
                             }
 
                             return $true
+                            }
+                            catch {
+                                Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
+			                    return $null
+                            }
+                        } catch {
+                            $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
+                            if ($errorResponse.error -eq "authorization_pending") {
+                                Start-Sleep -Seconds 5
+                            } elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
+                                Write-Host "`n[-] Authorization failed or expired." -ForegroundColor DarkRed
+                                return
+                            } else {
+                                Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
+                                return
+                            }
                         }
-                        catch {
-                            Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
-			                return $null
+                    } 
+                }
+            }
+            elseif ($identityType -eq "2") {
+                Write-Host "Enter your Client ID"
+                $ClientID = Read-Host "[>]"
+                Write-Host "Enter your Client Secret"
+                $ClientSecret = Read-Host "[>]"
+
+                $Url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token"
+                $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+                $headers = @{ 'User-Agent' = $UserAgent }
+                $bodyGraph = @{
+                    "grant_type" = "client_credentials"
+                    "scope" = "https://graph.microsoft.com/.default"
+                    "client_id" = "$ClientID"
+                    "client_secret" = "$ClientSecret"
+                }
+                $bodyARM = @{
+                    "grant_type" = "client_credentials"
+                    "scope" = "https://management.azure.com/.default"
+                    "client_id" = "$ClientID"
+                    "client_secret" = "$ClientSecret"
+                }
+                try {
+                    $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $bodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                    $GraphToken = $refreshResponseGraph.access_token
+                    $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $bodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                    $ARMToken = $refreshResponseARM.access_token
+                    $Global:GraphAccessToken = $GraphToken
+                    $Global:ARMAccessToken = $ARMToken
+
+                    $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
+                    $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
+                    if ($DecodedGraph) {
+                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                        if ($DecodedGraph.app_displayname) {
+                            Write-Host "  App-Name:        $($DecodedGraph.app_displayname)" -ForegroundColor Green
+                        } 
+                        if ($DecodedGraph.scp) {
+                            Write-Host "  Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
                         }
-                    } catch {
-                        $errorResponse = $_.ErrorDetails.Message | ConvertFrom-Json
-                        if ($errorResponse.error -eq "authorization_pending") {
-                            Start-Sleep -Seconds 5
-                        } elseif ($errorResponse.error -eq "authorization_declined" -or $errorResponse.error -eq "expired_token") {
-                            Write-Host "`n[-] Authorization failed or expired." -ForegroundColor DarkRed
-                            return
-                        } else {
-                            Write-Host "`n[-] Unexpected error: $($errorResponse.error)" -ForegroundColor DarkRed
-                            return
+                        if ($DecodedGraph.roles) {
+                            Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
                         }
+                        Write-Host ""
+
+                        $CurrentName = $DecodedGraph.app_displayname
+                        $Scopes = $DecodedGraph.scp -split " " 
+                        $Global:Identities += [PSCustomObject]@{
+                            UPN             = $CurrentName 
+                            GraphToken      = $GraphToken
+                            ARMToken        = $ARMToken
+                            Scopes          = $Scopes 
+                        }         
                     }
-                } 
-        }
-    }
-    elseif ($identityType -eq "2") {
-            Write-Host "Enter your Client ID"
-            $ClientID = Read-Host "[>]"
-            Write-Host "Enter your Client Secret"
-            $ClientSecret = Read-Host "[>]"
 
-            $Url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token"
-            $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
-		    $headers = @{ 'User-Agent' = $UserAgent }
+                    if ($DecodedARM) {
+                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
 
-            $bodyGraph = @{
-                "grant_type" = "client_credentials"
-                "scope" = "https://graph.microsoft.com/.default"
-                "client_id" = "$ClientID"
-                "client_secret" = "$ClientSecret"
-            }
-            $bodyARM = @{
-                "grant_type" = "client_credentials"
-                "scope" = "https://management.azure.com/.default"
-                "client_id" = "$ClientID"
-                "client_secret" = "$ClientSecret"
-            }
-
-            try {
-                $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $bodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                $GraphToken = $refreshResponseGraph.access_token
-                $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $bodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                $ARMToken = $refreshResponseARM.access_token
-                $Global:GraphAccessToken = $GraphToken
-                $Global:ARMAccessToken = $ARMToken
-                write-host "$GraphToken"
-                write-host ""
-                write-host "$ARMToken"
-                write-host ""
-                            $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                            $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                            if ($DecodedGraph) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
-
-                                if ($DecodedGraph.app_displayname) {
-                                    Write-Host "    👤 App-Name:        $($DecodedGraph.app_displayname)" -ForegroundColor Green
-                                } elseif ($DecodedGraph.unique_name) {
-                                    Write-Host "    👤 UniqueName: $($DecodedGraph.unique_name)" -ForegroundColor Green
-                                }
-
-                                if ($DecodedGraph.scp) {
-                                    Write-Host "    🔐 Scopes:     $($DecodedGraph.scp)" -ForegroundColor Yellow
-                                }
-
-                                if ($DecodedGraph.roles) {
-                                    Write-Host "    🔐 Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
-                                }
-
-                                Write-Host ""
-                            }
-
-
-                            if ($DecodedARM) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
-
-                                if ($DecodedARM.app_displayname) {
-                                    Write-Host "    👤 App-Name:        $($DecodedARM.app_displayname)" -ForegroundColor Green
-                                } elseif ($DecodedARM.unique_name) {
-                                    Write-Host "    👤 UniqueName: $($DecodedARM.unique_name)" -ForegroundColor Green
-                                }
-
-                                if ($DecodedARM.scp) {
-                                    Write-Host "    🔐 Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
-                                }
-
-                                if ($DecodedARM.roles) {
-                                    Write-Host "    🔐 Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
-                                }
-
-                                Write-Host ""
-                            }
+                        if ($DecodedARM.app_displayname) {
+                            Write-Host "  App-Name:        $($DecodedARM.app_displayname)" -ForegroundColor Green
+                        } 
+                        if ($DecodedARM.scp) {
+                            Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                        }
+                        if ($DecodedARM.roles) {
+                            Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                        }
+                        Write-Host ""
+                    }
                 return $true
 
+                }   
+                catch {
+                    write-Host "fuck3"
+                }
             }
-            catch {
-                write-Host "fuck3"
+        }   
+
+
+        function Show-IdentitiesMenu {
+            Write-Host "`n====== Authenticated Identities ======" -ForegroundColor Green
+            for ($i = 0; $i -lt $Global:Identities.Count; $i++) {
+                $user = $Global:Identities[$i]
+                Write-Host "$($i+1)) $($user.UPN) - $($user.Scopes.Count) scopes"
             }
- 
+            $choice = Read-Host "Choose identity index to work with"
+            if ($choice -match '^\d+$' -and $choice -gt 0 -and $choice -le $Global:Identities.Count) {
+                $SelectedIdentity = $Global:Identities[$choice - 1]
+                $Global:GraphAccessToken = $SelectedIdentity.GraphToken
+                $Global:ARMAccessToken   = $SelectedIdentity.ARMToken
+                Write-Host "`n[+] Loaded identity: $($SelectedIdentity.UPN)" -ForegroundColor Green
 
-    }
-}
+                Show-MainMenu
+            } else {
+                Write-Host "[!] Invalid selection" -ForegroundColor Red
+                Show-IdentitiesMenu
+            }
+        }
 
-# == MAIN MENU ==
+
 Initialize-Session
 
-function Show-IdentitiesMenu {
-    Write-Host "`n====== Authenticated Identities ======" -ForegroundColor Green
-    for ($i = 0; $i -lt $Global:Identities.Count; $i++) {
-        $user = $Global:Identities[$i]
-        Write-Host "$($i+1)) $($user.UPN) - $($user.Scopes.Count) scopes"
-    }
-
-    $choice = Read-Host "Choose identity index to work with"
-    if ($choice -match '^\d+$' -and $choice -gt 0 -and $choice -le $Global:Identities.Count) {
-        $SelectedIdentity = $Global:Identities[$choice - 1]
-        $Global:GraphAccessToken = $SelectedIdentity.GraphToken
-        $Global:ARMAccessToken   = $SelectedIdentity.ARMToken
-        Write-Host "`n[+] Loaded identity: $($SelectedIdentity.UPN)" -ForegroundColor Green
-
-        
-        Show-MainMenu
-    } else {
-        Write-Host "[!] Invalid selection" -ForegroundColor Red
-        Show-IdentitiesMenu
-    }
-}
-
-
-Write-Host "`n[+] Identity for $CurrentUPN added." -ForegroundColor Cyan
-do {
-    $continue = Read-Host "Do you want to add another identity? (y/n)"
-} while ($continue -notin @("y","n"))
-
-if ($continue -eq "y") {
-    # שוב להרצת Initialize-Session
-    Initialize-Session
-} else {
-    Show-IdentitiesMenu
-}
-
+function Show-MainMenu {
 while ($true) {
     Write-Host "`n==== Entra Framework Menu ===="
-    Write-Host "1) Run Function A"
-    Write-Host "2) Run Function B"
+    Write-Host "1) Graph - Show"
+    Write-Host "2) ARM -Show"
     Write-Host "3) Exit"
     $choice = Read-Host "Select Option"
 
     switch ($choice) {
-        "1" { Write-Host "[Function A executed] (example)" -ForegroundColor Cyan }
-        "2" { Write-Host "[Function B executed] (example)" -ForegroundColor Cyan }
+        "1" { Write-Host "$Global:GraphAccessToken" -ForegroundColor Cyan }
+        "2" { Write-Host "$Global:ARMAccessToken" -ForegroundColor Cyan }
         "3" { break }
         default { Write-Host "[!] Invalid option." -ForegroundColor Red }
     }
 }
 
 }
+
+function Start-IdentityLoop {
+    while ($true) {
+        $success = Initialize-Session
+
+        if ($success) {
+            $last = $Global:Identities[-1]
+            if ($last.UPN) {
+                Write-Host "`n[+] Identity for $($last.UPN) added." -ForegroundColor Cyan
+            } elseif ($last.AppName) {
+                Write-Host "`n[+] Service Principal identity $($last.UPN) added." -ForegroundColor Cyan
+            }
+        }
+
+        do {
+            $continue = Read-Host "Do you want to add another identity? (y/n)"
+        } while ($continue -notin @("y", "n"))
+
+        if ($continue -eq "n") {
+            break
+        }
+    }
+
+    Show-IdentitiesMenu
+}
+
+
+Start-IdentityLoop
+
+}
+
 
