@@ -1033,19 +1033,19 @@ function Banner {
                     $TenantName = $Global:TenantName
                     if($choice -eq "y"){
                         if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
-                            Invoke-PublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
+                            Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
                         }
                         if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
-                            Invoke-PublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
+                            Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
                         }      
                     }
                     if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
 
-                        Invoke-PublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                        Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }
                     if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
 
-                        Invoke-PublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                        Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }                   
                     }
 
