@@ -4,16 +4,35 @@
 # -----------------------------
 function Main {
 # == Function: Choose Tenant Input Method ==
+
+
+function Banner {
+
+        Write-Host "##############################################################################################" -ForegroundColor Cyan
+        Write-Host "#                                                                                                           #" -ForegroundColor Cyan
+        Write-Host "#     _    ____ _____     _____       _                    ____      _ _           _   _                    #" -ForegroundColor Cyan
+        Write-Host "#    / \  |  _ \_   _|   | ____|_ __ | |_ _ __ __ _       / ___|___ | | | ___  ___| |_(_) ___   __ __       #" -ForegroundColor Cyan
+        Write-Host "#   / _ \ | |_) || |_____|  _| | '_ \| __| '__/ _` |_____ | |   / _ \| | |/ _ \/ __| __| |/ _ \ |  '_  \     #" -ForegroundColor Cyan
+        Write-Host "#  / ___ \|  _ < | |_____| |___| | | | |_| | | (_| |_____| |__| (_) | | |  __/ (__| |_| | (_) ||  | |  |    #" -ForegroundColor Cyan
+        Write-Host "# /_/   \_\_| \_\|_|     |_____|_| |_|\__|_|  \__,_|      \____\___/|_|_|\___|\___|\__|_|\___/ |__| |__|    #" -ForegroundColor Cyan
+        Write-Host "#                                                                                                           #" -ForegroundColor Cyan
+        Write-Host "#                         Entra ID Interactive Framework  |  Author: Shaked Weissman                        #" -ForegroundColor Yellow
+        Write-Host "#                                                                                                           #" -ForegroundColor Cyan
+        Write-Host "##############################################################################################" -ForegroundColor Cyan
+
+}
+
         function Get-TenantInputMethod {
+            Banner
             while ($true) {
-                Write-Host "`n[*] Choose tenant input method:"
-                Write-Host "1) Tenant Name"
-                Write-Host "2) Tenant ID"
+                Write-Host "`n[*] Choose tenant input method:" -ForegroundColor DarkCyan
+                Write-Host "1) Tenant Name" -ForegroundColor DarkYellow
+                Write-Host "2) Tenant ID" -ForegroundColor DarkYellow
                 $choice = Read-Host "Enter choice (1/2)"
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice. Please enter 1 or 2." -ForegroundColor Red
+                    Write-Host "[!] Invalid choice. Please enter 1 or 2." -ForegroundColor DarkRed
                 }
             }
         }
@@ -29,23 +48,23 @@ function Main {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantName/.well-known/openid-configuration" -ErrorAction Stop
                             return @{ TenantID = ($resp.issuer -split '/')[3]; Input = $TenantName; Source = "Domain" }
                         } catch {
-                            Write-Host "[!] Invalid Tenant Domain." -ForegroundColor Red
+                            Write-Host "[!] Invalid Tenant Domain." -ForegroundColor DarkRed
                         }
                     }
                 }
             }
             if ($Method -eq "2") {
                 while ($true) {
-                    $TenantID = Read-Host "[*] Enter your Tenant ID"
+                    $TenantID = Read-Host "[*] Enter your Tenant ID" -ForegroundColor Cyan
                     if (![string]::IsNullOrWhiteSpace($TenantID) -and $TenantID -match '^[0-9a-fA-F\-]{36}$') {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/.well-known/openid-configuration" -ErrorAction Stop
                             return @{ TenantID = $TenantID; Input = $TenantID; Source = "ID" }
                         } catch {
-                            Write-Host "[!] Invalid Tenant ID." -ForegroundColor Red
+                            Write-Host "[!] Invalid Tenant ID." -ForegroundColor DarkRed
                         }
                     } else {
-                        Write-Host "[!] Please enter a valid GUID format." -ForegroundColor Red
+                        Write-Host "[!] Please enter a valid GUID format." -ForegroundColor DarkRed
                     }
                 }
             }
@@ -54,14 +73,14 @@ function Main {
 
         function Choose-IdentityType {
             while ($true) {
-                Write-Host "`n[*] Choose Identity Type:"
-                Write-Host "1) User Account"
-                Write-Host "2) Service Principal"
+                Write-Host "`n[*] Choose Identity Type:" -ForegroundColor DarkCyan
+                Write-Host "1) User Account" -ForegroundColor DarkYellow
+                Write-Host "2) Service Principal" -ForegroundColor DarkYellow
                 $choice = Read-Host "Enter choice (1/2)"
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice." -ForegroundColor Red
+                    Write-Host "[!] Invalid choice." -ForegroundColor DarkRed
                 }
             }
         }
@@ -69,14 +88,14 @@ function Main {
 
         function Choose-UserAuthFlow {
             while ($true) {
-                Write-Host "`n[*] Choose Authentication Method:"
-                Write-Host "1) Refresh Token"
-                Write-Host "2) Device Code Flow"
+                Write-Host "`n[*] Choose Authentication Method:" -ForegroundColor DarkCyan
+                Write-Host "1) Refresh Token" -ForegroundColor DarkYellow
+                Write-Host "2) Device Code Flow" -ForegroundColor DarkYellow
                 $choice = Read-Host "Enter choice (1/2)"
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice." -ForegroundColor Red
+                    Write-Host "[!] Invalid choice." -ForegroundColor DarkRed
                 }
             }
         }
@@ -96,11 +115,11 @@ function Main {
                     $json = [System.Text.Encoding]::UTF8.GetString($bytes)
                     return $json | ConvertFrom-Json
                 } catch {
-                    Write-Host "[!] Failed to decode Access Token" -ForegroundColor Red
+                    Write-Host "[!] Failed to decode Access Token" -ForegroundColor DarkRed
                     return $null
                 }
             } else {
-                Write-Host "[!] Invalid Access Token format." -ForegroundColor Red
+                Write-Host "[!] Invalid Access Token format." -ForegroundColor DarkRed
                 return $null
             }
         }
@@ -120,7 +139,7 @@ function Main {
                 $authMethod = Choose-UserAuthFlow
 
                 if ($authMethod -eq "1") {
-                    Write-Host "Enter your Refresh Token"
+                    Write-Host "Enter your Refresh Token" -ForegroundColor yan
                     $RefreshToken = Read-Host "[>]"
                     $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 		            $headers = @{ 'User-Agent' = $UserAgent }
@@ -271,6 +290,7 @@ function Main {
                                     ARMToken        = $ARMToken
                                     Scopes          = $Scopes 
                                     RefreshToken    = $RefreshToken
+                                    type            = "User"
                                 }                      
 
                             }
@@ -311,9 +331,9 @@ function Main {
                 }
             }
             elseif ($identityType -eq "2") {
-                Write-Host "Enter your Client ID"
+                Write-Host "Enter your Client ID" -ForegroundColor Cyan
                 $ClientID = Read-Host "[>]"
-                Write-Host "Enter your Client Secret"
+                Write-Host "Enter your Client Secret" -ForegroundColor Cyan
                 $ClientSecret = Read-Host "[>]"
 
                 $Url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token"
@@ -362,7 +382,8 @@ function Main {
                             ARMToken        = $ARMToken
                             Scopes          = $Scopes
                             ClientID        = $ClientID
-                            ClientSecret    = $ClientSecret 
+                            ClientSecret    = $ClientSecret
+                            type            = "SPN" 
                         }         
                     }
 
@@ -398,12 +419,13 @@ function Main {
             }
             $choice = Read-Host "Choose identity index to work with"
             if ($choice -match '^\d+$' -and $choice -gt 0 -and $choice -le $Global:Identities.Count) {
-                $SelectedIdentity = $Global:Identities[$choice - 1]
-                $Global:GraphAccessToken = $SelectedIdentity.GraphToken
-                $Global:ARMAccessToken   = $SelectedIdentity.ARMToken
-                $Global:RefreshToken = $SelectedIdentity.refreshtoken
-                $Global:clientID = $SelectedIdentity.ClientID
-                $Global:ClientSecret = $SelectedIdentity.ClientSecret
+                $SelectedIdentity = $Global:Identities[$choice - 1]  
+                    $Global:GraphAccessToken = $SelectedIdentity.GraphToken
+                    $Global:ARMAccessToken   = $SelectedIdentity.ARMToken
+                    $Global:RefreshToken = $SelectedIdentity.refreshtoken
+                    $Global:clientID = $SelectedIdentity.ClientID
+                    $Global:ClientSecret = $SelectedIdentity.ClientSecret
+                 
                 Write-Host "`n[+] Loaded identity: $($SelectedIdentity.UPN)" -ForegroundColor Green
 
                 Show-MainMenu
@@ -416,12 +438,12 @@ function Main {
 
     function Show-MainMenu {
         while ($true) {
-            Write-Host "`n==== Entra Framework Menu ===="
-            Write-Host "1) Graph - Show"
-            Write-Host "2) ARM -Show"
-            Write-Host "3) RefreshToken"
-            Write-Host "4) RefreshToken"
-            $choice = Read-Host "Select Option"
+            Write-Host "`n==== Entra Framework Menu ====" -ForegroundColor DarkCyan
+            Write-Host "1) Graph - Show" -ForegroundColor DarkYellow
+            Write-Host "2) ARM -Show" -ForegroundColor DarkYellow
+            Write-Host "3) RefreshToken" -ForegroundColor DarkYellow
+            Write-Host "4) Client ID + Client Secret" -ForegroundColor DarkYellow
+            $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
 
             switch ($choice) {
                 "1" { Write-Host "$Global:GraphAccessToken" -ForegroundColor Cyan }
