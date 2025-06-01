@@ -686,16 +686,26 @@ function Banner {
                     }
                     
                     try {
-                        $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                        $GraphToken = $refreshResponseGraph.access_token
-                        $RefreshToken = $refreshResponseGraph.refresh_token
-                        $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                        $ARMToken = $refreshResponseARM.access_token
-                        #$Global:GraphAccessToken = $GraphToken
-                        #$Global:ARMAccessToken = $ARMToken
-                        $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                        $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                        if ($DecodedGraph) {
+                                try {
+                                    $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                                    $GraphToken = $refreshResponseGraph.access_token
+                                    $RefreshToken = $refreshResponseGraph.refresh_token
+                                    $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
+                                    Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor Green
+                                } catch {
+                                    Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
+                                }
+
+                                try {
+                                    $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                                    $ARMToken = $refreshResponseARM.access_token
+                                    $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
+                                    Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
+                                } catch {
+                                    Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
+                                }
+                            if ($GraphToken -or $ARMToken) {
+                            if ($DecodedGraph) {
                                 Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
                                 if ($DecodedGraph.upn) {
                                     Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
@@ -734,9 +744,9 @@ function Banner {
                                 }
                                 Write-Host ""
                             }
-                    return $true
+                        return $true
                     }   
-                    catch {
+                    }catch {
                         Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
 			            return $null
                     }
