@@ -1039,11 +1039,11 @@ function Banner {
                             Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
                         }      
                     }
-                    if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
+                    elseif ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
 
                         Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }
-                    if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
+                    elseif ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
 
                         Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                     }                   
