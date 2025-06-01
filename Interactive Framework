@@ -141,10 +141,11 @@ function Main {
                     try {
                         $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
                         $GraphToken = $refreshResponseGraph.access_token
+                        $RefreshToken = $refreshResponseGraph.refresh_token
                         $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                         $ARMToken = $refreshResponseARM.access_token
-                        $Global:GraphAccessToken = $GraphToken
-                        $Global:ARMAccessToken = $ARMToken
+                        #$Global:GraphAccessToken = $GraphToken
+                        #$Global:ARMAccessToken = $ARMToken
                         $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
                         $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
                         if ($DecodedGraph) {
@@ -166,7 +167,8 @@ function Main {
                                     UPN             = $CurrentUPN 
                                     GraphToken      = $GraphToken
                                     ARMToken        = $ARMToken
-                                    Scopes          = $Scopes 
+                                    Scopes          = $Scopes
+                                    RefreshToken    = $RefreshToken 
                                 }                      
                         }
 
@@ -239,10 +241,11 @@ function Main {
                             try {
                                 $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
                                 $GraphToken = $refreshResponseGraph.access_token
+                                $RefreshToken = $refreshResponseGraph.refresh_token
                                 $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                                 $ARMToken = $refreshResponseARM.access_token
-                                $Global:GraphAccessToken = $GraphToken
-                                $Global:ARMAccessToken = $ARMToken
+                                #$Global:GraphAccessToken = $GraphToken
+                                #$Global:ARMAccessToken = $ARMToken
 
                                 $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
                                 $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
@@ -267,6 +270,7 @@ function Main {
                                     GraphToken      = $GraphToken
                                     ARMToken        = $ARMToken
                                     Scopes          = $Scopes 
+                                    RefreshToken    = $RefreshToken
                                 }                      
 
                             }
@@ -356,7 +360,9 @@ function Main {
                             UPN             = $CurrentName 
                             GraphToken      = $GraphToken
                             ARMToken        = $ARMToken
-                            Scopes          = $Scopes 
+                            Scopes          = $Scopes
+                            ClientID        = $ClientID
+                            ClientSecret    = $ClientSecret 
                         }         
                     }
 
@@ -395,6 +401,9 @@ function Main {
                 $SelectedIdentity = $Global:Identities[$choice - 1]
                 $Global:GraphAccessToken = $SelectedIdentity.GraphToken
                 $Global:ARMAccessToken   = $SelectedIdentity.ARMToken
+                $Global:RefreshToken = $SelectedIdentity.refreshtoken
+                $Global:clientID = $SelectedIdentity.ClientID
+                $Global:ClientSecret = $SelectedIdentity.ClientSecret
                 Write-Host "`n[+] Loaded identity: $($SelectedIdentity.UPN)" -ForegroundColor Green
 
                 Show-MainMenu
@@ -405,25 +414,25 @@ function Main {
         }
 
 
-Initialize-Session
+    function Show-MainMenu {
+        while ($true) {
+            Write-Host "`n==== Entra Framework Menu ===="
+            Write-Host "1) Graph - Show"
+            Write-Host "2) ARM -Show"
+            Write-Host "3) RefreshToken"
+            Write-Host "4) RefreshToken"
+            $choice = Read-Host "Select Option"
 
-function Show-MainMenu {
-while ($true) {
-    Write-Host "`n==== Entra Framework Menu ===="
-    Write-Host "1) Graph - Show"
-    Write-Host "2) ARM -Show"
-    Write-Host "3) Exit"
-    $choice = Read-Host "Select Option"
-
-    switch ($choice) {
-        "1" { Write-Host "$Global:GraphAccessToken" -ForegroundColor Cyan }
-        "2" { Write-Host "$Global:ARMAccessToken" -ForegroundColor Cyan }
-        "3" { break }
-        default { Write-Host "[!] Invalid option." -ForegroundColor Red }
+            switch ($choice) {
+                "1" { Write-Host "$Global:GraphAccessToken" -ForegroundColor Cyan }
+                "2" { Write-Host "$Global:ARMAccessToken" -ForegroundColor Cyan }
+                "3" { Write-Host "$Global:RefreshToken" -ForegroundColor Cyan }
+                "4" { Write-Host "$Global:clientID  , $Global:ClientSecret" -ForegroundColor Cyan }
+                "5" { break }
+                default { Write-Host "[!] Invalid option." -ForegroundColor Red }
+            }
+        }
     }
-}
-
-}
 
 function Start-IdentityLoop {
     while ($true) {
@@ -434,21 +443,24 @@ function Start-IdentityLoop {
             if ($last.UPN) {
                 Write-Host "`n[+] Identity for $($last.UPN) added." -ForegroundColor Cyan
             } elseif ($last.AppName) {
-                Write-Host "`n[+] Service Principal identity $($last.UPN) added." -ForegroundColor Cyan
+                Write-Host "`n[+] Identity for $($last.AppName) added." -ForegroundColor Cyan
             }
-        }
 
-        do {
-            $continue = Read-Host "Do you want to add another identity? (y/n)"
-        } while ($continue -notin @("y", "n"))
+            do {
+                $continue = Read-Host "Do you want to add another identity? (y/n)"
+            } while ($continue -notin @("y", "n"))
 
-        if ($continue -eq "n") {
-            break
+            if ($continue -eq "n") {
+                break  # Exit loop and go to menu
+            }
+        } else {
+            Write-Host "[!] Failed to initialize identity. Try again." -ForegroundColor Red
         }
     }
 
-    Show-IdentitiesMenu
+    Show-IdentitiesMenu  # Moved outside the while loop
 }
+
 
 
 Start-IdentityLoop
