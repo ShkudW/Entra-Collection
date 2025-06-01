@@ -1008,8 +1008,8 @@ function Banner {
             Write-Host "1) Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
             Write-Host "2) Invoke-FindPublicGroups" -ForegroundColor DarkYellow
             Write-Host "3) RefreshToken" -ForegroundColor DarkYellow
-            Write-Host "4) Client ID + Client Secret" -ForegroundColor DarkYellow
-            $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
+            Write-Host "4) Identity Menu" -ForegroundColor DarkYellow
+            $choice = Read-Host "Select Option" 
 
             switch ($choice) {
                 "1" {
@@ -1057,7 +1057,7 @@ function Banner {
                     }
 
                 "3" { Write-Host "$Global:RefreshToken" -ForegroundColor Cyan }
-                "4" { Write-Host "$Global:clientID  , $Global:ClientSecret" -ForegroundColor Cyan }
+                "4" { Show-IdentitiesMenu }
                 "5" { break }
                 default { Write-Host "[!] Invalid option." -ForegroundColor Red }
             }
