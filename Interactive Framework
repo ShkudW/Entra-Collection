@@ -2,10 +2,10 @@
 # Entra ID Interactive Framework
 # Author: Shaked Weissman
 # -----------------------------
-function Main {
-# == Function: Choose Tenant Input Method ==
+function EntraCollection {
 
 
+<#################################################################################################################################################>
 function Invoke-FindDynamicGroups {	
     param (
         [string]$RefreshToken, 
@@ -15,8 +15,7 @@ function Invoke-FindDynamicGroups {
         [string]$TenantName,
         [string]$ClientSecret
     )
-
-        
+    
     $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
     $headers = @{ 'User-Agent' = $UserAgent }
 		
@@ -52,6 +51,14 @@ function Invoke-FindDynamicGroups {
 		}
 
 	if (-not $GraphAccessToken) { return }
+
+    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+        $authMethod = "client"
+    }
+    
+    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+        $authMethod = "refresh"
+    }
 
 	if (Test-Path "Dynamic_Groups.txt") {
 		$choice = Read-Host "Dynamic_Groups.txt exists. (D)elete / (A)ppend?"
@@ -171,6 +178,10 @@ function Invoke-FindDynamicGroups {
 }
 
 
+
+<#################################################################################################################################################>
+<#################################################################################################################################################>
+<#################################################################################################################################################>
 function Banner {
 
         Write-Host "##############################################################################################" -ForegroundColor Cyan
