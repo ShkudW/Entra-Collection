@@ -4,7 +4,105 @@
 # -----------------------------
 function EntraCollection {
 
+<#####################################>
+function Invoke-FindGroup {
+    param (
+        [string]$GraphAccessToken,
+        [string]$Word
+    )
 
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+
+    function Invoke-WithRetry {
+        param (
+            [string]$Method,
+            [string]$Uri,
+            [hashtable]$Headers,
+            [int]$MaxRetries = 5
+        )
+
+        $attempt = 0
+        while ($true) {
+            try {
+                return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $Headers -ErrorAction Stop
+            }
+            catch {
+                if ($.Exception.Response.StatusCode.value_ -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 10 }
+                    Write-Host "[!] 429. Waiting $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds $retryAfter
+                    $attempt++
+                    if ($attempt -ge $MaxRetries) {
+                        Write-Host "[X] Max retries. Skipping." -ForegroundColor Red
+                        return $null
+                    }
+                } else {
+                    throw $_
+                }
+            }
+        }
+    }
+
+    $headers = @{ 
+        Authorization = "Bearer $GraphAccessToken" 
+        'User-Agent' = $UserAgent
+        }
+
+
+    $groups = Invoke-WithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/groups?$select=id,displayName,isAssignableToRole" -Headers $headers
+    if ($groups -eq $null) { return }
+
+
+    if ($Word) {
+        $filteredGroups = $groups.value | Where-Object { $_.displayName.ToLower() -like "*$($Word.ToLower())*" }
+        Write-Host "[>] Filter applied: "$Word". Matching groups: $($filteredGroups.Count)"
+    } else {
+        $filteredGroups = $groups.value
+        Write-Host "[>] No filter provided. Total groups: $($filteredGroups.Count)"
+    }   
+
+
+    $directoryRoles = Invoke-WithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/directoryRoles" -Headers $headers
+    if ($directoryRoles -eq $null) { return }
+
+    $groupToRolesMap = @{}
+
+    foreach ($role in $directoryRoles.value) {
+        $roleId = $role.id
+        $roleName = $role.displayName
+
+        $members = Invoke-WithRetry -Method GET -Uri "https://graph.microsoft.com/v1.0/directoryRoles/$roleId/members" -Headers $headers
+        if ($members -eq $null) { continue }
+
+        $groupMembers = $members.value | Where-Object { $_.'@odata.type' -eq '#microsoft.graph.group' }
+        foreach ($member in $groupMembers) {
+            $groupToRolesMap[$member.id] += $roleName
+        }
+    }
+
+    Write-Host "`n[+] Starting to enumeate filtered groups in $TenantName Tenant"
+
+        foreach ($group in $filteredGroups) {
+            $groupId = $group.id
+            $groupName = $group.displayName
+            $roleAssignable = $group.isAssignableToRole
+
+            Write-Host "Group: $groupName ($groupId)"
+            Write-Host "  ↳ Role-Assignable: $roleAssignable"
+
+            if ($groupToRolesMap.ContainsKey($groupId)) {
+                foreach ($role in $groupToRolesMap[$groupId]) {
+                    Write-Host "  ↳ Assigned to Entra Role: $role"
+                }
+            }
+
+            Write-Host""
+        }
+}
+
+
+<#################################################################################################################################################>
 function Invoke-FindUserByWord {
     param(
         [string]$RefreshToken,
@@ -139,6 +237,8 @@ function Invoke-FindUserByWord {
     }
 
     return $ListUsers
+    $ListUsers |  Out-File -FilePath "ListUsers.txt" -Encoding UTF8
+    Write-Host "Exported to ListUsers.txt" -ForegroundColor Green
 }
 
 
@@ -307,6 +407,9 @@ function Invoke-FindUserRole {
     } else {
         Write-Host "`n[!] No users with roles found." -ForegroundColor DarkGray
     }
+
+     $usersWithRoles |  Out-File -FilePath "usersWithRoles.txt" -Encoding UTF8
+     Write-Host "Exported to usersWithRoles.txt" -ForegroundColor Green
 }
 
 
