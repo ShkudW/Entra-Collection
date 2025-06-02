@@ -4,6 +4,319 @@
 # -----------------------------
 function EntraCollection {
 
+
+function Invoke-FindUserByWord {
+    param(
+        [string]$RefreshToken,
+	    [string]$TenantID,
+	    [string]$TenantName,
+	    [string]$GraphAccessToken,
+	    [string]$ClientID,
+	    [string]$ClientSecret,
+	    [string]$Word
+    )
+
+    while($true){
+        if ($word -eq $null){
+            write-host "you must provide word to search"
+            $word = read-host "[>]"
+        }
+    }
+
+	$OutputFile = "FoundUsers.txt"
+	if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
+
+
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+
+
+    function Get-TokenWithRefreshToken {
+        param ( 
+            [string]$TenantID
+        )
+        
+        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" 
+        $body = @{
+            client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            scope         = "https://graph.microsoft.com/.default"
+            grant_type    = "refresh_token"
+            refresh_token = $RefreshToken
+        }
+
+        try {
+            $response = Invoke-RestMethod -Method Post -Uri $url -Body $body -Headers $headers -ContentType "application/x-www-form-urlencoded"
+            return $response.access_token
+        } catch {
+            Write-Host "[-] Failed to get access token: $_" -ForegroundColor Red
+            exit 1
+        }
+    }
+
+	function Get-TokenWithClientSecret {
+        param(
+            [string]$ClientID,
+            [string]$ClientSecret,
+            [string]$TenantID   
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+		$body = @{
+			"client_id"     = $ClientId
+			"client_secret" = $ClientSecret
+			"scope"         = "https://graph.microsoft.com/.default"
+			"grant_type"    = "client_credentials"
+			}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+	}
+
+
+	if (-not $GraphAccessToken) { return }
+
+    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+        $authMethod = "client"
+    }
+    
+    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+        $authMethod = "refresh"
+    }
+    
+
+    $TokenStartTime = Get-Date
+    $UsersUrl = "https://graph.microsoft.com/v1.0/users"
+    $ListUsers = @()
+
+    $Headers = @{
+        "Authorization" = "Bearer $GraphAccessToken"
+        "Content-Type"  = "application/json"
+        "User-Agent"    ="$UserAgent"
+    }
+
+    write-host "Starting to eumerate all user that contain '$word' in $TenantName Tenant.."
+
+    while ($UsersUrl) {
+        
+        if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
+            Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
+            if ($authMethod -eq "client") {
+                $GraphAccessToke = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+            }
+            if ($authMethod -eq "refresh") {
+                $GraphAccessToken = Get-TokenWithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+            }
+            $StartTime = Get-Date
+            $headers = @{
+                "Authorization" = "Bearer $GraphAccessToken"
+                "Content-Type"  = "application/json"
+                "User-Agent"    = "$UserAgent"
+            }
+        }
+
+        try {
+            $Response = Invoke-RestMethod -Method Get -Uri $UsersUrl -Headers $Headers -ErrorAction Stop
+            foreach ($User in $Response.value) {
+                if ( ($User.displayName -like "*$Word*" -or $User.mail -like "*$Word*" -or $User.userPrincipalName -like "*$Word*" -or $User.givenName -like "*$Word*" -or $User.surname -like "*$Word*")) 
+                {
+					$ListUsers += $User
+                    $Line = "$($User.displayName) | $($User.userPrincipalName)"
+                    Add-Content -Path $OutputFile -Value $Line
+                    Write-Host ""
+                    Write-Host "[+] Found: " -NoNewline
+                    Write-Host "$($User.displayName)" -ForegroundColor Green -NoNewline
+                    Write-Host " | $($User.userPrincipalName)" -ForegroundColor DarkGray
+                }
+            }
+
+            $UsersUrl = $Response.'@odata.nextLink'
+        } catch {
+            if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                if ($retryAfter) {
+                    Write-Host "[!] Rate limit hit. Retrying after $retryAfter seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds ([int]$retryAfter)
+                } else {
+                    Write-Host "[!] Rate limit hit. Retrying after default 60 seconds..." -ForegroundColor Yellow
+                    Start-Sleep -Seconds 60
+                }
+            } else {
+                Write-Warning "Failed to retrieve users: $_"
+                break
+            }
+        }
+    }
+
+    return $ListUsers
+}
+
+
+<#################################################################################################################################################>
+function Invoke-FindUserRole {
+
+    param(
+        [string]$RefreshToken,
+        [string]$ClientID,
+        [string]$GraphAccessToken,
+        [string]$ClientSecret,
+        [string]$TenantName,
+        [string]$TenantID
+    )
+
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+
+
+    function Get-TokenWithRefreshToken {
+        param ( 
+            [string]$TenantID
+        )
+        
+        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" 
+        $body = @{
+            client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            scope         = "https://graph.microsoft.com/.default"
+            grant_type    = "refresh_token"
+            refresh_token = $RefreshToken
+        }
+
+        try {
+            $response = Invoke-RestMethod -Method Post -Uri $url -Body $body -Headers $headers -ContentType "application/x-www-form-urlencoded"
+            return $response.access_token
+        } catch {
+            Write-Host "[-] Failed to get access token: $_" -ForegroundColor Red
+            exit 1
+        }
+    }
+
+	function Get-TokenWithClientSecret {
+        param(
+            [string]$ClientID,
+            [string]$ClientSecret,
+            [string]$TenantID   
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+		$body = @{
+			"client_id"     = $ClientId
+			"client_secret" = $ClientSecret
+			"scope"         = "https://graph.microsoft.com/.default"
+			"grant_type"    = "client_credentials"
+			}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+	}
+
+
+	if (-not $GraphAccessToken) { return }
+
+    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+        $authMethod = "client"
+    }
+    
+    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+        $authMethod = "refresh"
+    }
+
+    $StartTime = Get-Date
+    $headers = @{
+        Authorization = "Bearer $GraphAccessToken"
+        "Content-Type" = "application/json"
+        "User-Aget"    = "$UserAgent"
+    }
+
+    $allUsers = @()
+    $uri = "https://graph.microsoft.com/v1.0/users"
+
+    Write-Host "[*] Starting yto enumerate all users in $TenantName Tenant" -ForegroundColor Cyan
+
+    while ($uri) {
+        try {
+            $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+            $allUsers += $response.value
+            $uri = $response.'@odata.nextLink'
+        } catch {
+            if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 10 }
+                    Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
+                    Start-Sleep -Seconds $retryAfter
+            }
+            if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
+                Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
+                if ($authMethod -eq "client") {
+                    $GraphAccessToke = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+                }
+                if ($authMethod -eq "refresh") {
+                    $GraphAccessToken = Get-TokenWithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+                }
+                
+                $StartTime = Get-Date
+                $headers = @{
+                    "Authorization" = "Bearer $GraphAccessToken"
+                    "Content-Type"  = "application/json"
+                    "User-Agent"    = "$UserAgent"
+                }
+            }
+            
+        }
+    }
+	Write-Host "[*] Total users found: $($allUsers.Count)" -ForegroundColor Cyan
+
+	$usersWithRoles = @()
+    foreach ($user in $allUsers) {
+        $id = $user.id
+        $upn = $user.userPrincipalName
+        Write-Host "`n[*] Checking roles for: $upn ($id)" -ForegroundColor Cyan
+
+        $roleUri = "https://graph.microsoft.com/v1.0/users/$id/transitiveMemberOf/microsoft.graph.directoryRole"
+
+        while ($true) {
+            try {
+                $roleResponse = Invoke-RestMethod -Uri $roleUri -Headers $headers -Method Get
+                $roles = $roleResponse.value
+                if ($roles.Count -eq 0) {
+                    break
+                }
+                Write-Host "[+] $upn ($id) has the following roles:" -ForegroundColor Green
+                $roleNames = @()
+                foreach ($role in $roles) {
+                    $roleNames += $role.displayName
+                    Write-Host "    -> $($role.displayName)" -ForegroundColor Yellow
+                }
+                    
+                $usersWithRoles += [PSCustomObject]@{
+                    UPN       = $upn
+                    ObjectId  = $id
+                    Roles     = ($roleNames -join ", ")
+                }
+                    break
+            } catch {
+                if ($_.Exception.Response.StatusCode.value__ -eq 429) {
+                    $retryAfter = $_.Exception.Response.Headers["Retry-After"]
+                    if (-not $retryAfter) { $retryAfter = 10 }
+                    Write-Host "[!] 429 Too Many Requests. Retrying in $retryAfter seconds..." -ForegroundColor DarkYellow
+                    Start-Sleep -Seconds $retryAfter
+                } else {
+                    Write-Host "[-] Failed to fetch roles for $upn ($id): $_" -ForegroundColor Red
+                    break
+                }
+            }
+        }
+    }
+
+    if ($usersWithRoles.Count -gt 0) {
+        Write-Host "`n==========================" -ForegroundColor Cyan
+        Write-Host "Users with Roles Found:" -ForegroundColor Cyan
+        Write-Host "==========================" -ForegroundColor Cyan
+        foreach ($user in $usersWithRoles) {
+            Write-Host "`nUPN: $($user.UPN)" -ForegroundColor Green
+            Write-Host "ObjectId: $($user.ObjectId)" -ForegroundColor DarkCyan
+            Write-Host "Roles: $($user.Roles)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "`n[!] No users with roles found." -ForegroundColor DarkGray
+    }
+}
+
+
+
+<#################################################################################################################################################>
 function Invoke-FindServicePrincipal {
     param (
         [string]$RefreshToken,
@@ -177,8 +490,7 @@ function Invoke-FindServicePrincipal {
     Write-Host "Exported to ServicePrincipals.txt" -ForegroundColor Green
 }
 
-
-<#######################################################################################################################################>
+<#################################################################################################################################################>
 function Invoke-FindPublicGroups {
 
     param (
@@ -519,8 +831,6 @@ function Invoke-FindPublicGroups {
     Write-Host "`n[>] Public group ids save to Public_Groups.txt" -ForegroundColor DarkCyan
 }
 
-
-
 <#################################################################################################################################################>
 function Invoke-FindDynamicGroups {	
     param (
@@ -860,25 +1170,25 @@ function Banner {
                     }
                     
                     try {
-                                try {
-                                    $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                                    $GraphToken = $refreshResponseGraph.access_token
-                                    $RefreshToken = $refreshResponseGraph.refresh_token
-                                    $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                                    Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor Green
-                                } catch {
-                                    Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
+                        try {
+                            $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                            $GraphToken = $refreshResponseGraph.access_token
+                            $RefreshToken = $refreshResponseGraph.refresh_token
+                            $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
+                            Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor Green
+                        } catch {
+                            Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
+                            }
+                            try {
+                                $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                                $ARMToken = $refreshResponseARM.access_token
+                                $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
+                                Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
+                            } catch {
+                                Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
                                 }
-                                try {
-                                    $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
-                                    $ARMToken = $refreshResponseARM.access_token
-                                    $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                                    Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
-                                } catch {
-                                    Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
-                                }
-                                if ($GraphToken -or $ARMToken) {
-                                    if ($DecodedGraph) {
+                            if ($GraphToken -or $ARMToken) {
+                                if ($DecodedGraph) {
                                     Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
                                     if ($DecodedGraph.upn) {
                                         Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
@@ -1072,7 +1382,7 @@ function Banner {
                 }
                 try {
                     try {
-                        $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                        $refreshResponseGraph = Invoke-RestMethod -Method POST -Uri $url -Body $bodyGraph -Headers $headers -ContentType "application/x-www-form-urlencoded"
                         $GraphToken = $refreshResponseGraph.access_token
                         $RefreshToken = $refreshResponseGraph.refresh_token
                         $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
@@ -1081,7 +1391,7 @@ function Banner {
                         Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
                     }
                     try {
-                        $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
+                        $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $bodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                         $ARMToken = $refreshResponseARM.access_token
                         $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
                         Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
@@ -1182,6 +1492,8 @@ function Banner {
             Write-Host "1) Invoke-FindDynamicGroups" -ForegroundColor DarkYellow
             Write-Host "2) Invoke-FindPublicGroups" -ForegroundColor DarkYellow
             Write-Host "3) Invoke-FindServicePrincipal" -ForegroundColor DarkYellow
+            Write-Host "4) Invoke-FindUserRole" -ForegroundColor DarkYellow
+            Write-Host "5) Invoke-FindUserByWord" -ForegroundColor DarkYellow
             Write-Host "9) RefreshToken" -ForegroundColor DarkYellow
             Write-Host "10) Identity Menu" -ForegroundColor DarkCyan
             $choice = Read-Host "Select Option" 
@@ -1228,8 +1540,29 @@ function Banner {
 
                             Invoke-FindServicePrincipal -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantName $TenantName -TenantID $TenantID
                         }
+                        if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
+
+                            Invoke-FindServicePrincipal -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantName $TenantName -TenantID $TenantID
+                        }
                         
                 }
+                "4" {
+                    if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
+                    Invoke-FindUserRole -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantName $TenantName -TenantID $TenantID
+                    }
+                     if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
+
+                    Invoke-FindUserRole -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantName $TenantName -TenantID $TenantID
+                     }
+                } 
+                "5"{
+                        if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
+                        Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken 
+                        }
+                         if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
+                        Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken
+                         }
+                }          
                 "9" { Write-Host "$RefreshToken" -ForegroundColor Cyan }
                 "10" { Show-IdentitiesMenu }
                 "11" { break }
