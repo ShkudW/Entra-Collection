@@ -1517,7 +1517,7 @@ function Banner {
 
                 "2" {
                         Write-Host "Do You want Deep search with conversations searching? Y , N" -ForegroundColor DarkCyan
-                        $choice = Read-Host "Select Option" -ForegroundColor DarkYellow
+                        $choice = Read-Host "Select Option" 
                         if($choice -eq "y"){
                             if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
                                 Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
@@ -1560,7 +1560,7 @@ function Banner {
                     while($true){
                     if($word -eq $null){
                         Write-Host "You need to provide word to search" -ForegroundColor DarkCyan
-                        $word = Read-Host "Enter Word to search" -ForegroundColor DarkYellow
+                        $word = Read-Host "Enter Word to search" 
                         }
                     }
 
