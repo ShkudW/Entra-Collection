@@ -1556,11 +1556,19 @@ function Banner {
                      }
                 } 
                 "5"{
+                    $word = $null
+                    while($true){
+                    if($word -eq $null){
+                        Write-Host "You need to provide word to search" -ForegroundColor DarkCyan
+                        $word = Read-Host "Enter Word to search" -ForegroundColor DarkYellow
+                        }
+                    }
+
                         if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
                         Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken 
                         }
                          if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
-                        Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken
+                        Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
                          }
                 }          
                 "9" { Write-Host "$RefreshToken" -ForegroundColor Cyan }
