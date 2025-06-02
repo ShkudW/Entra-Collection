@@ -1565,7 +1565,7 @@ function Banner {
                     }
 
                         if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
-                        Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken 
+                        Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
                         }
                          if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
                         Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
