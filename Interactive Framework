@@ -16,13 +16,6 @@ function Invoke-FindUserByWord {
 	    [string]$Word
     )
 
-    while($true){
-        if ($word -eq $null){
-            write-host "you must provide word to search"
-            $word = read-host "[>]"
-        }
-    }
-
 	$OutputFile = "FoundUsers.txt"
 	if (Test-Path $OutputFile) { Remove-Item $OutputFile -Force }
 
@@ -33,7 +26,8 @@ function Invoke-FindUserByWord {
 
     function Get-TokenWithRefreshToken {
         param ( 
-            [string]$TenantID
+            [string]$TenantID,
+            [string]$RefreshToken
         )
         
         $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" 
@@ -81,7 +75,7 @@ function Invoke-FindUserByWord {
     }
     
 
-    $TokenStartTime = Get-Date
+    $StartTime = Get-Date
     $UsersUrl = "https://graph.microsoft.com/v1.0/users"
     $ListUsers = @()
 
@@ -98,7 +92,7 @@ function Invoke-FindUserByWord {
         if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
             Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
             if ($authMethod -eq "client") {
-                $GraphAccessToke = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+                $GraphAccessToken = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
             }
             if ($authMethod -eq "refresh") {
                 $GraphAccessToken = Get-TokenWithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
@@ -166,7 +160,8 @@ function Invoke-FindUserRole {
 
     function Get-TokenWithRefreshToken {
         param ( 
-            [string]$TenantID
+            [string]$TenantID,
+            [string]$RefreshToken
         )
         
         $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" 
@@ -240,7 +235,7 @@ function Invoke-FindUserRole {
             if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
                 Write-Host "[*] Refreshing Access Token..." -ForegroundColor Yellow
                 if ($authMethod -eq "client") {
-                    $GraphAccessToke = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
+                    $GraphAccessToken = Get-TokenWithClientSecret -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID
                 }
                 if ($authMethod -eq "refresh") {
                     $GraphAccessToken = Get-TokenWithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
@@ -1556,20 +1551,20 @@ function Banner {
                      }
                 } 
                 "5"{
-                    $word = $null
-                    while($true){
-                    if($word -eq $null){
-                        Write-Host "You need to provide word to search" -ForegroundColor DarkCyan
-                        $word = Read-Host "Enter Word to search" 
+                    while ($true) {
+                        if ($word -eq $null -or $word -eq "") {
+                            Write-Host "You must provide a word to search"
+                            $word = Read-Host "[>]"
+                        } else {
+                            break
                         }
                     }
-
-                        if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
+                    if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
                         Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
                         }
-                         if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
+                    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
                         Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
-                         }
+                        }
                 }          
                 "9" { Write-Host "$RefreshToken" -ForegroundColor Cyan }
                 "10" { Show-IdentitiesMenu }
