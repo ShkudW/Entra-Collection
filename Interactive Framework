@@ -4,8 +4,187 @@
 # -----------------------------
 function EntraCollection {
 
+function Invoke-MembershipChange {
 
-<#####################################>
+    param(
+        [string]$RefreshToken,
+        [string]$GraphAccessToken,
+		[string]$ClientID,
+		[string]$ClientSecret,
+		[string]$UserID,
+		[string]$TenantID,
+        [string]$Action,
+        [string]$GroupIdsInput,
+        [string]$SuccessLogFile = "C:\Users\Public\success_log.txt",
+		[string]$SuccessRenoveLogFile = "C:\Users\Public\success_Remove_log.txt"
+		
+    )
+
+
+    
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+
+    function Get-TokenWithRefreshToken {
+        param ( 
+            [string]$TenantID,
+            [string]$RefreshToken
+        )
+        
+        $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token" 
+        $body = @{
+            client_id     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
+            scope         = "https://graph.microsoft.com/.default"
+            grant_type    = "refresh_token"
+            refresh_token = $RefreshToken
+        }
+
+        try {
+            $response = Invoke-RestMethod -Method Post -Uri $url -Body $body -Headers $headers -ContentType "application/x-www-form-urlencoded"
+            return $response.access_token
+        } catch {
+            Write-Host "[-] Failed to get access token: $_" -ForegroundColor Red
+            exit 1
+        }
+    }
+
+	function Get-TokenWithClientSecret {
+        param(
+            [string]$ClientID,
+            [string]$ClientSecret,
+            [string]$TenantID   
+        )
+		$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+		$body = @{
+			"client_id"     = $ClientId
+			"client_secret" = $ClientSecret
+			"scope"         = "https://graph.microsoft.com/.default"
+			"grant_type"    = "client_credentials"
+			}
+		return (Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $headers).access_token
+	}
+
+
+	if (-not $GraphAccessToken) { return }
+
+    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+        $authMethod = "client"
+    }
+    
+    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+        $authMethod = "refresh"
+    }
+
+	    function Decode-JWT {
+            param([Parameter(Mandatory = $true)][string]$Token)
+            $tokenParts = $Token.Split(".")
+            $payload = $tokenParts[1].Replace('-', '+').Replace('_', '/')
+            switch ($payload.Length % 4) { 2 { $payload += "==" }; 3 { $payload += "=" } }
+            $bytes = [System.Convert]::FromBase64String($payload)
+            return ([System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json)
+	    }
+	
+		if($UserID){
+			$MemberId = $UserID
+            Write-Host "[*] Using MemberId $MemberId" -ForegroundColor DarkYellow
+		}
+		else {
+			$DecodedToken = Decode-JWT -Token $GraphAccessToken
+			$MemberId = $DecodedToken.oid
+            Write-Host "[*] MemberId extracted: $MemberId" -ForegroundColor DarkYellow
+		}
+	
+        $GroupIds = if (Test-Path $GroupIdsInput) {
+            Get-Content -Path $GroupIdsInput | Where-Object { $_.Trim() -ne "" }
+        } else {
+            @($GroupIdsInput)
+        }
+
+        if ($Action -eq "add" -and (Test-Path $SuccessLogFile)) { Remove-Item $SuccessLogFile -Force }
+
+        $StartTime = Get-Date
+
+        foreach ($GroupId in $GroupIds) {
+
+            if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
+                Write-Host "[...] Refreshing Access Token" -ForegroundColor DarkYellow
+                $GraphAccessToken = Get-TokenWithRefreshToken -RefreshToken $RefreshToken -TenantID $TenantID
+                $StartTime = Get-Date
+            }
+            $Headers = @{
+                'Authorization' = "Bearer $GraphAccessToken"
+                'Content-Type'  = 'application/json'
+                'User-Agent'    = "$UserAgent"
+            }
+            $RetryCount = 0
+            $MaxRetries = 5
+            $Success = $false
+
+            do {
+                try {
+                    if ($Action -eq "add") {
+                        $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref"
+                        $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json
+                        Invoke-RestMethod -Method POST -Uri $Url -Headers $Headers -Body $Body -ContentType "application/json"
+                        Write-Host "[+] Added $MemberId to $GroupId" -ForegroundColor Green
+                        
+                        Add-Content -Path $SuccessLogFile -Value $GroupId
+                        $Success = $true
+                    } elseif ($Action -eq "delete") {
+                        $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/$MemberId/`$ref"
+                        Invoke-RestMethod -Method DELETE -Uri $Url -Headers $Headers
+                        Write-Host "[+] Removed $MemberId from $GroupId" -ForegroundColor Green
+                        Add-Content -Path $SuccessRenoveLogFile -Value $GroupId
+                        $Success = $true
+                    }
+                } catch {
+                    $Response = $_.Exception.Response
+                    $StatusCode = 0
+                    $ErrorMessage = "Unknown Error"
+
+                    if ($Response) {
+                        $StatusCode = $Response.StatusCode.value__
+                        try {
+                            $Stream = $Response.GetResponseStream()
+                            $Reader = New-Object System.IO.StreamReader($Stream)
+                            $RawBody = $Reader.ReadToEnd()
+                            $JsonBody = $RawBody | ConvertFrom-Json
+                            $ErrorMessage = $JsonBody.error.message
+                        } catch {
+                            $ErrorMessage = "Failed to parse error response."
+                        }
+                    }
+
+                    if ($StatusCode -eq 429) {
+                        $retryAfter = 7
+                        if ($Response.Headers["Retry-After"]) {
+                            $retryAfter = [int]$Response.Headers["Retry-After"]
+                        }
+                        Write-Host "[!] 429 Rate Limit - Sleeping $retryAfter seconds..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds $retryAfter
+                        $RetryCount++
+                    }
+                    elseif ($StatusCode -eq 400 -and $Action -eq "add" -and $ErrorMessage -match "already exist") {
+                        Write-Host "[=] Member already exists in ${GroupId}." -ForegroundColor Yellow
+                        $Success = $true
+                    }
+                    elseif ($StatusCode -eq 400 -and $Action -eq "delete") {
+                        Write-Host "[-] Error during DELETE from ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
+                        $Success = $true
+                    }
+                    else {
+                        Write-Host "[-] Unexpected error during $Action for ${GroupId}: $ErrorMessage (HTTP $StatusCode)" -ForegroundColor Red
+                        $Success = $true
+                    }
+                }
+            } while (-not $Success -and $RetryCount -lt $MaxRetries)
+            Start-Sleep -Milliseconds 300
+        }
+}
+
+
+
+<#################################################################################################################################################>
 function Invoke-FindGroup {
     param (
         [string]$GraphAccessToken,
@@ -1892,23 +2071,33 @@ function Banner {
                 }
 
                 "2" {
-                    Write-Host "Do You want Deep search with conversations searching? Y , N" -ForegroundColor DarkCyan
-                    $choice = Read-Host "Select Option" 
-                    if($choice -eq "y"){
-                        if ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
-                            Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
+                    Write-Host "`n[?] Do you want to perform a deep search with conversation scanning? (Y/N)" -ForegroundColor DarkCyan
+                    $choice = Read-Host "Select Option"
+
+                    $useDeep = $false
+                    if ($choice -match '^(Y|y)$') {
+                        $useDeep = $true
+                    }
+
+                    if ($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
+                        if ($useDeep) {
+                            Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -Deep
+                        } else {
+                            Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
                         }
-                        if ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
-                            Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -deep
-                        }      
                     }
-                    elseif ($RefreshToken -eq $null -and $ClientID -ne $null -and $ClientSecret -ne $null) {
-                        Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                    elseif ($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
+                        if ($useDeep) {
+                            Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName -Deep
+                        } else {
+                            Invoke-FindPublicGroups -ClientID $ClientID -ClientSecret $ClientSecret -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
+                        }
                     }
-                    elseif ($ClientID -eq $null -and $ClientSecret -eq $null -and $RefreshToken -ne $null)  {
-                        Invoke-FindPublicGroups -RefreshToken $RefreshToken -GraphAccessToken $GraphAccessToken -TenantID $TenantID -TenantName $TenantName
-                    }                   
+                    else {
+                        Write-Host "[!] No valid authentication method provided. Please authenticate first." -ForegroundColor Red
+                    }
                 }
+
 
                 "3" {
                     if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
@@ -1928,38 +2117,103 @@ function Banner {
                     }
                 } 
 
-                "5"{
+                "5" {
                     while ($true) {
-                        if ($word -eq $null -or $word -eq "") {
-                            Write-Host "You must provide a word to search"
-                            $word = Read-Host "[>]"
+                        if (-not $word) {
+                            Write-Host "`n[!] You must provide a word to search for a user." -ForegroundColor Red
+                            $word = Read-Host "[>] Enter word to search for user"
                         } else {
                             break
                         }
                     }
-                    if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
-                        Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
+
+                    if ($RefreshToken -and -not $ClientID -and -not $ClientSecret) {
+                        Invoke-FindUserByWord -RefreshToken $RefreshToken -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -Word $word
                     }
-                    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
-                        Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -word $word
+                    elseif ($ClientID -and $ClientSecret -and -not $RefreshToken) {
+                        Invoke-FindUserByWord -ClientID $ClientID -ClientSecret $ClientSecret -TenantID $TenantID -TenantName $TenantName -GraphAccessToken $GraphAccessToken -Word $word
+                    }
+                    else {
+                        Write-Host "[!] No valid authentication method loaded. Please load identity first." -ForegroundColor Red
                     }
                 }
 
+
                 "6" {
                     while ($true) {
-                        if ($word -eq $null -or $word -eq "") {
-                            Write-Host "You must provide a word to search"
-                            $word = Read-Host "[>]"
+                        if (-not $word) {
+                            Write-Host "`n[!] You must provide a word to search." -ForegroundColor Red
+                            $word = Read-Host "[>] Enter word to search for group name"
                         } else {
                             break
                         }
                     }
-                    if($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
-                        Invoke-Findgroup -GraphAccessToken $GraphAccessToken -word $word -TenantName $TenantName
+
+                    if ($RefreshToken -and -not $ClientID -and -not $ClientSecret) {
+                        Invoke-FindGroup -GraphAccessToken $GraphAccessToken -Word $word -TenantName $TenantName
                     }
-                     if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
-                        Invoke-Findgroup -ClientID $ClientID -ClientSecret $ClientSecret -word $word -TenantName $TenantName
-                    }  
+                    elseif ($ClientID -and $ClientSecret -and -not $RefreshToken) {
+                        Invoke-FindGroup -ClientID $ClientID -ClientSecret $ClientSecret -Word $word -TenantName $TenantName
+                    }
+                    else {
+                        Write-Host "[!] No valid authentication method loaded. Please load identity first." -ForegroundColor Red
+                    }
+                }
+
+
+                "7" {
+                    while ($true) {
+                        Write-Host "`nDo you want to manage your own membership or someone else's?" -ForegroundColor Cyan
+                        $selfChoice = Read-Host "(Y)ourself / (O)ther user"
+
+                        if ($selfChoice -eq "Y") {
+                            $UserID = $null 
+
+                        } elseif ($selfChoice -eq "O") {
+                            $UserID = Read-Host "Enter User ID"
+                        } else {
+                            Write-Host "[!] Invalid selection. Please enter Y or O." -ForegroundColor Red
+                            continue
+                        }
+
+                        $action = Read-Host "Do you want to (A)dd or (R)emove from group(s)?"
+                        if ($action -ne "A" -and $action -ne "R") {
+                            Write-Host "[!] Invalid action. Enter A or R." -ForegroundColor Red
+                            continue
+                        }
+
+                        $groupType = Read-Host "Target a (O)ne group or a (L)ist of groups?"
+                        if ($groupType -ne "O" -and $groupType -ne "L") {
+                            Write-Host "[!] Invalid input. Enter O or L." -ForegroundColor Red
+                            continue
+                        }
+
+                        if ($groupType -eq "O") {
+                            $GroupIdsInput = Read-Host "Enter Group ID"
+                        } else {
+                            $GroupIdsInput = Read-Host "Enter path to group list"
+                        }
+
+                        
+                        $params = @{
+                            RefreshToken     = $RefreshToken
+                            GraphAccessToken = $GraphAccessToken
+                            TenantID         = $TenantID
+                            GroupIdsInput    = $GroupIdsInput
+                            Action           = if ($action -eq "A") { "Add" } else { "Delete" }
+                        }
+
+                        if ($UserID) {
+                            $params.UserID = $UserID
+                        }
+
+                        Invoke-MembershipChange @params
+
+                        $again = Read-Host "`nDo you want to perform another membership change? (Y/N)"
+                        if ($again -ne "Y") {
+                            break
+                        }
+                    }
                 }
 
                 "9"  { Write-Host "$RefreshToken" -ForegroundColor Cyan }
