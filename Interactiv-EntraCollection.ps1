@@ -4,6 +4,98 @@
 # -----------------------------
 function EntraCollection {
 
+
+function Invoke-TAPChanger {
+    param(
+        [string]$UseTargetID,
+        [string]$GraphAccessToken,
+        [switch]$Add,
+        [switch]$Delete,
+        [int]$LifetimeMinutes = 60,
+        [bool]$IsUsableOnce = $false,
+        [datetime]$StartDateTime
+    )
+
+
+    $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{ 'User-Agent' = $UserAgent }
+
+        function New-TemporaryAccessPass {
+            param(
+                [string]$UserId,
+                [string]$Token,
+                [int]$Minutes,
+                [bool]$UsableOnce,
+                [datetime]$Start
+            )
+
+            $url = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
+            $body = @{
+                lifetimeInMinutes = $Minutes
+                isUsableOnce      = $UsableOnce
+            }
+
+            if ($Start) {
+                $body.startDateTime = $Start.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            }
+
+            $headers = @{
+                Authorization = "Bearer $Token"
+                "Content-Type" = "application/json"
+                "User-Agent"    = "$UserAgent"
+            }
+
+            try {
+                $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body ($body | ConvertTo-Json -Depth 10)
+                Write-Host "[+] TAP Created Successfully" -ForegroundColor Green
+                Write-Host "    TemporaryAccessPass : $($response.temporaryAccessPass)"
+                Write-Host "    StartDateTime       : $($response.startDateTime)"
+            } catch {
+                Write-Error "[-] Failed to create TAP: $_"
+            }
+        }
+
+
+        function Remove-TemporaryAccessPass {
+            param(
+                [string]$UserId,
+                [string]$Token
+            )
+
+            $baseUrl = "https://graph.microsoft.com/v1.0/users/$UserId/authentication/temporaryAccessPassMethods"
+            $headers = @{
+                Authorization = "Bearer $Token"
+                "Content-Type" = "application/json"
+                "User-Agent"    = "$UserAgent"
+            }   
+
+            try {
+                $methods = Invoke-RestMethod -Uri $baseUrl -Method Get -Headers $headers
+                foreach ($method in $methods.value) {
+                    $deleteUrl = "$baseUrl/$($method.id)"
+                    Invoke-RestMethod -Uri $deleteUrl -Method Delete -Headers $headers
+                    Write-Host "[+] TAP Deleted: $($method.id)" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Error "[-] Failed to delete TAP(s): $_"
+            }
+        }
+
+        if ($Add) {
+            if ($PSBoundParameters.ContainsKey('StartDateTime')) {
+			    New-TemporaryAccessPass -UserId $UseTargetID -Token $GraphAccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce -Start $StartDateTime
+		    } else {
+			    New-TemporaryAccessPass -UserId $UseTargetID -Token $GraphAccessToken -Minutes $LifetimeMinutes -UsableOnce $IsUsableOnce
+		    }
+
+        }
+
+        if ($Delete) {
+            Remove-TemporaryAccessPass -UserId $UseTargetID -Token $AccessToken
+        }
+}
+
+<########################################################################################################>
 function Invoke-ResourcePermissions {
 
     param(
@@ -2371,18 +2463,20 @@ function Banner {
         Write-Host "#                                                                                                              #" -ForegroundColor Cyan
         Write-Host "#     _    ____ _____     _____       _                    ____      _ _           _   _                       #" -ForegroundColor Cyan
         Write-Host "#    / \  |  _ \_   _|   | ____|_ __ | |_ _ __ __ _       / ___|___ | | | ___  ___| |_(_) ___   __ __          #" -ForegroundColor Cyan
-        Write-Host "#   / _ \ | |_) || |_____|  _| | '_ \| __| '__/ _` |_____ | |   / _ \| | |/ _ \/ __| __| |/ _ \ |  '_  \       #" -ForegroundColor Cyan
+        Write-Host "#   / _ \ | |_) || |_____|  _| | '_ \| __| '__/ _` |_____ | |   / _ \| | |/ _ \/ __| __| |/ _ \ |  '_  \        #" -ForegroundColor Cyan
         Write-Host "#  / ___ \|  _ < | |_____| |___| | | | |_| | | (_| |_____| |__| (_) | | |  __/ (__| |_| | (_) ||  | |  |       #" -ForegroundColor Cyan
         Write-Host "# /_/   \_\_| \_\|_|     |_____|_| |_|\__|_|  \__,_|      \____\___/|_|_|\___|\___|\__|_|\___/ |__| |__|       #" -ForegroundColor Cyan
         Write-Host "#                                                                                                              #" -ForegroundColor Cyan
-        Write-Host "#                         Entra ID Interactive Framework  |  Author: Shaked Weissman                           #" -ForegroundColor Yellow
+        Write-Host "#               Entra ID Interactive Framework  |  For Purple Team Operations  |   By AB-inBev                 #" -ForegroundColor DarkYellow
+        Write-Host "#                                                                     Author: Shaked Wiessman                  #" -ForegroundColor DarkCyan
         Write-Host "#                                                                                                              #" -ForegroundColor Cyan
         Write-Host "################################################################################################################" -ForegroundColor Cyan
 
 }
-
+        
+        Banner
         function Get-TenantInputMethod {
-            Banner
+            
             while ($true) {
                 Write-Host ""
                 Write-Host "==================== Tenant Selection Menu ====================" -ForegroundColor DarkCyan
@@ -2413,7 +2507,6 @@ function Banner {
                     if (![string]::IsNullOrWhiteSpace($TenantName)) {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantName/.well-known/openid-configuration" -ErrorAction Stop
-                            $Global:TenantName = $TenantName
                             return @{
                                 TenantID = ($resp.issuer -split '/')[3]
                                 Input    = $TenantName
@@ -2433,7 +2526,7 @@ function Banner {
                     Write-Host "`n==================== Tenant ID Mode ====================" -ForegroundColor DarkCyan
                     Write-Host "[*] Please enter your Tenant ID (GUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)" -ForegroundColor Cyan
                     $TenantID = Read-Host "Tenant ID"
-
+                    
                     if (![string]::IsNullOrWhiteSpace($TenantID) -and $TenantID -match '^[0-9a-fA-F\-]{36}$') {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/.well-known/openid-configuration" -ErrorAction Stop
@@ -2551,7 +2644,7 @@ function Banner {
                     $RefreshToken = Read-Host "[>]"
                     $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 		            $headers = @{ 'User-Agent' = $UserAgent }
-                    $url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token?api-version=1.0"
+                    $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
                     $refreshBodyGraph = @{
                         "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
                         "scope"         = "https://graph.microsoft.com/.default"
@@ -2604,6 +2697,7 @@ function Banner {
                                         UPN             = $CurrentUPN
                                         Email           = $CurrentEmail
                                         TenantID        = $Tenant
+                                        TenantName      = $TenantName 
                                         GraphToken      = $GraphToken
                                         ARMToken        = $ARMToken
                                         Scopes          = $Scopes
@@ -2663,7 +2757,7 @@ function Banner {
                             Set-Content -Path "C:\Users\Public\Refreshtoken.txt" -Value $RefreshToken
                             Write-Host "[>] Refresh Token saved to C:\Users\Public\Refreshtoken.txt" -ForegroundColor DarkGray
 
-                            $url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token?api-version=1.0"
+                            $url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token?api-version=1.0"
                             $refreshBodyGraph = @{
                                 "client_id"     = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
                                 "scope"         = "https://graph.microsoft.com/.default"
@@ -2718,6 +2812,7 @@ function Banner {
                                             UPN             = $CurrentUPN
                                             Email           = $CurrentEmail
                                             TenantID        = $Tenant
+                                            TenantName      = $TenantName 
                                             GraphToken      = $GraphToken
                                             ARMToken        = $ARMToken
                                             Scopes          = $Scopes 
@@ -2768,7 +2863,7 @@ function Banner {
                 Write-Host "  Enter your Client Secret" -ForegroundColor DarkCyan
                 $ClientSecret = Read-Host "  [>]"
 
-                $Url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token"
+                $Url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
                 $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
                 $headers = @{ 'User-Agent' = $UserAgent }
                 $bodyGraph = @{
@@ -2842,6 +2937,7 @@ function Banner {
                                 GraphToken      = $GraphToken
                                 ARMToken        = $ARMToken
                                 TenantID        = $Tenant
+                                TenantName      = $TenantName 
                                 Scopes          = $Scopes
                                 HighPrivileged  = $High
                                 ClientID        = $ClientID
@@ -2878,15 +2974,15 @@ function Banner {
 
     function Show-IdentitiesMenu {
         Write-Host "`n================== Authenticated Identities ==================" -ForegroundColor DarkGreen
-        Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10} {5,-20}" -f "ID", "User Principal Name", "Email","Graph", "ARM", "TenantID") -ForegroundColor White
-        Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10} {5,-20}" -f "--", "-------------------", "-------------------", "-----", "---", "-------------------") -ForegroundColor White
+        Write-Host ("{0,-5} {1,-50} {2,-40} {3,-10} {4,-10} {5,-20}" -f "ID", "User Principal Name", "Email","Graph", "ARM", "TenantID") -ForegroundColor White
+        Write-Host ("{0,-5} {1,-50} {2,-40} {3,-10} {4,-10} {5,-20}" -f "--", "-------------------", "-------------------", "-----", "---", "-------------------") -ForegroundColor White
 
         for ($i = 0; $i -lt $Global:Identities.Count; $i++) {
             $user = $Global:Identities[$i]
             $graphStatus = if ($user.GraphToken) { " V" } else {" X" }
             $armStatus = if ($user.ARMToken) { " V" } else {" X" }
 
-            Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10} {5,-20}" -f "$($i+1))", $user.upn, $user.email, $graphStatus, $armStatus, $user.TenantID) -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-50} {2,-40} {3,-10} {4,-10} {5,-20}" -f "$($i+1))", $user.upn, $user.email, $graphStatus, $armStatus, $user.TenantID) -ForegroundColor DarkYellow
 
         }
         Write-Host ""
@@ -2901,6 +2997,9 @@ function Banner {
             $Global:ClientID         = $SelectedIdentity.ClientID
             $Global:ClientSecret     = $SelectedIdentity.ClientSecret
             $Global:HighPrivileged   = $SelectedIdentity.HighPrivileged
+            $Global:TenantID         = $SelectedIdentity.TenantID
+            $Global:TenantName       = $SelectedIdentity.TenantName
+        
 
         if($user.email -eq $null -and $user.upn -ne $null) {
             Write-Host "`n[+] Loaded identity: $($SelectedIdentity.upn)" -ForegroundColor Green
@@ -2925,20 +3024,21 @@ function Banner {
             Write-Host "`n================== Entra Framework Menu ==================" -ForegroundColor DarkCyan
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "ID", "Function", "Description") -ForegroundColor White
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "--", "--------", "-----------") -ForegroundColor White
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "1)", "Invoke-FindDynamicGroups", "Enumerate dynamic Entra ID groups") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "2)", "Invoke-FindPublicGroups", "Find public O365 groups in the tenant") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "3)", "Invoke-FindServicePrincipal", "List all Service Principals and app roles") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "4)", "Invoke-FindUserRole", "Map users and their directory roles") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "5)", "Invoke-FindUserByWord", "Search users by word match in name/UPN") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "6)", "Invoke-FindGroup", "Find groups and their role assignments") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "7)", "Invoke-MembershipChange", "Find groups and their role assignments") -ForegroundColor DarkYellow
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "8)", "Invoke-ResourcePermissions", "Find groups and their role assignments") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "1)", "Invoke-FindDynamicGroups", "Identify dynamic groups in the target Entra ID tenant and analyze their membership rules") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "2)", "Invoke-FindPublicGroups", "Enumerate public Microsoft 365 groups in the target Entra ID tenant, and optionally read their message content") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "3)", "Invoke-FindServicePrincipal", "Enumerate service principals that support delegated user access in the target Entra ID tenant") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "4)", "Invoke-FindUserRole", "Enumerate all users (UPNs) in the target Entra ID tenant and identify their assigned directory roles") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "5)", "Invoke-FindUserByWord", "Search for user accounts in the target Entra ID tenant by matching a specific keyword.") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "6)", "Invoke-FindGroup", "Search for Security,O365 group in the target Entra ID tenant by matching a specific keyword.s") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "7)", "Invoke-MembershipChange", "Add or remove a user (including yourself) from one or more groups in the target Entra ID tenant.") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "8)", "Invoke-ResourcePermissions", "Enumerate your effective role assignments on Azure resources, including Key Vaults, Storage Accounts, and Virtual Machines.") -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "9)", "Invoke-TAPChanger", "Add or remove a Temporary Access Pass (TAP) for a target user in the Entra ID tenant.") -ForegroundColor DarkYellow
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "--", "--------", "-----------") -ForegroundColor White
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "9)", "RefreshToken", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "10)", "Graph Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "11)", "ARM Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "10)", "RefreshToken", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "11)", "Graph Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "12)", "ARM Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "--", "--------", "-----------") -ForegroundColor White
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "12)", "Identity Menu", "View/add/remove current identities") -ForegroundColor DarkCyan
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "13)", "Identity Menu", "View/add/remove current identities") -ForegroundColor DarkCyan
             $choice = Read-Host "`n[>] Select an option"
             $RefreshToken = $Global:RefreshToken
             $ClientID = $Global:clientID
@@ -3168,50 +3268,65 @@ function Banner {
                         }
 
                     }
-                     
                     
                 }
-                "9"  { Write-Host "$RefreshToken" -ForegroundColor Cyan }
+                "9" {
+                    Write-Host "`nDo you want to Add or Delete a Temporary Access Pass (TAP)?" -ForegroundColor Cyan
+                    $selfChoice = Read-Host "[>] A(dd) or D(elete)"
 
-                "10" { Write-Host "$GraphAccessToken" -ForegroundColor Cyan }
+                    if ($selfChoice -match '^(Add|A|a|add)$') {
+                        Write-Host "`n[+] Which user account do you want to ADD a TAP for?" -ForegroundColor Cyan
+                        $UseTargetID = Read-Host "[>] Enter User ID"
+                        Invoke-TAPChanger -GraphAccessToken $GraphAccessToken -UseTargetID $UseTargetID -Add
+                    }
+                    elseif ($selfChoice -match '^(Delete|D|d|delete)$') {
+                        Write-Host "`n[+] Which user account do you want to DELETE a TAP from?" -ForegroundColor Cyan
+                        $UseTargetID = Read-Host "[>] Enter User ID"
+                        Invoke-TAPChanger -GraphAccessToken $GraphAccessToken -UseTargetID $UseTargetID -Delete
+                    }
+                    else {
+                        Write-Warning "Invalid choice. Please enter Add or Delete."
+                    }
+                }
+                "10"  { Write-Host "$RefreshToken" -ForegroundColor Cyan }
 
-                "11" { Write-Host "$ARMAccessToken" -ForegroundColor Cyan }
+                "11" { Write-Host "$GraphAccessToken" -ForegroundColor Cyan }
 
-                "12" { Show-IdentitiesMenu }
+                "12" { Write-Host "$ARMAccessToken" -ForegroundColor Cyan }
 
-                "13" { break }
+                "13" { Show-IdentitiesMenu }
+
+                "14" { break }
                 default { Write-Host "[!] Invalid option." -ForegroundColor Red }
             }
         }
     }
 
-function Start-IdentityLoop {
-    while ($true) {
-        $success = Initialize-Session
-        if ($success) {
-            $last = $Global:Identities[-1]
-            if ($last.UPN) {
-                Write-Host "`n[+] Identity for $($last.UPN) added." -ForegroundColor DarkCyan
-            } elseif ($last.AppName) {
-                Write-Host "`n[+] Identity for $($last.AppName) added." -ForegroundColor DarkCyan
-            }
+    function Start-IdentityLoop {
+        while ($true) {
+            $success = Initialize-Session
+            if ($success) {
+                $last = $Global:Identities[-1]
+                if ($last.UPN) {
+                    Write-Host "`n[+] Identity for $($last.UPN) added." -ForegroundColor DarkCyan
+                } elseif ($last.AppName) {
+                    Write-Host "`n[+] Identity for $($last.AppName) added." -ForegroundColor DarkCyan
+                }
 
-            do {
-                Write-Host "Do you want to add another identity? (y/n)" -ForegroundColor DarkYellow
-                $continue = Read-Host "[>]"
-            } while ($continue -notin @("y", "n"))
-                if ($continue -eq "n") {
-                break  
-                }   
-        } else {
-            Write-Host "[!] Failed to initialize identity. Try again." -ForegroundColor Red
+                do {
+                    Write-Host "Do you want to add another identity? (y/n)" -ForegroundColor DarkYellow
+                    $continue = Read-Host "[>]"
+                } while ($continue -notin @("y", "n"))
+                    if ($continue -eq "n") {
+                    break  
+                    }   
+            } else {
+                Write-Host "[!] Failed to initialize identity. Try again." -ForegroundColor Red
+            }
         }
+        Show-IdentitiesMenu  
     }
-    Show-IdentitiesMenu  
-}
 
 Start-IdentityLoop
 
 }
-
-
