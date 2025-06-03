@@ -1319,80 +1319,118 @@ function Banner {
         function Get-TenantInputMethod {
             Banner
             while ($true) {
-                Write-Host "`n[*] Choose tenant input method:" -ForegroundColor DarkCyan
-                Write-Host "1) Tenant Name" -ForegroundColor DarkYellow
-                Write-Host "2) Tenant ID" -ForegroundColor DarkYellow
-                $choice = Read-Host "Enter choice (1/2)"
+                Write-Host ""
+                Write-Host "==================== Tenant Selection Menu ====================" -ForegroundColor DarkCyan
+                Write-Host "| 1) Enter tenant by **Name** (e.g., domain.onmicrosoft.com) " -ForegroundColor Yellow
+                Write-Host "| 2) Enter tenant by **ID**   (GUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)" -ForegroundColor Yellow
+                Write-Host "===============================================================" -ForegroundColor DarkCyan
+
+                $choice = Read-Host "Enter your choice (1 or 2)"
+
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice. Please enter 1 or 2." -ForegroundColor DarkRed
+                    Write-Host "[!] Invalid choice. Please enter 1 or 2." -ForegroundColor Red
                 }
             }
         }
 
+
         function Get-TenantIdentity {
             param ($Method)
+
             if ($Method -eq "1") {
                 while ($true) {
-                    $TenantName = Read-Host "[*] Enter your Tenant Name"
+                    Write-Host "`n==================== Tenant Domain Mode ====================" -ForegroundColor DarkCyan
+                    Write-Host "[*] Please enter your full tenant domain (e.g., domain.onmicrosoft.com)" -ForegroundColor Cyan
+                    $TenantName = Read-Host "Domain"
+
                     if (![string]::IsNullOrWhiteSpace($TenantName)) {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantName/.well-known/openid-configuration" -ErrorAction Stop
                             $Global:TenantName = $TenantName
-                            return @{ TenantID = ($resp.issuer -split '/')[3]; Input = $TenantName; Source = "Domain" }
+                            return @{
+                                TenantID = ($resp.issuer -split '/')[3]
+                                Input    = $TenantName
+                                Source   = "Domain"
+                            }
                         } catch {
-                            Write-Host "[!] Invalid Tenant Domain." -ForegroundColor DarkRed
+                            Write-Host "[!] The specified domain is invalid or not reachable." -ForegroundColor Red
                         }
+                    } else {
+                        Write-Host "[!] Input cannot be empty. Please provide a valid domain." -ForegroundColor DarkRed
                     }
                 }
             }
+
             if ($Method -eq "2") {
                 while ($true) {
-                    $TenantID = Read-Host "[*] Enter your Tenant ID" -ForegroundColor Cyan
+                    Write-Host "`n==================== Tenant ID Mode ====================" -ForegroundColor DarkCyan
+                    Write-Host "[*] Please enter your Tenant ID (GUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)" -ForegroundColor Cyan
+                    $TenantID = Read-Host "Tenant ID"
+
                     if (![string]::IsNullOrWhiteSpace($TenantID) -and $TenantID -match '^[0-9a-fA-F\-]{36}$') {
                         try {
                             $resp = Invoke-RestMethod -Uri "https://login.microsoftonline.com/$TenantID/.well-known/openid-configuration" -ErrorAction Stop
-                            return @{ TenantID = $TenantID; Input = $TenantID; Source = "ID" }
+                            $Global:TenantID = $TenantID
+                            return @{
+                                TenantID = $TenantID
+                                Input    = $TenantID
+                                Source   = "ID"
+                            }
+                            
                         } catch {
-                            Write-Host "[!] Invalid Tenant ID." -ForegroundColor DarkRed
+                            Write-Host "[!] The specified Tenant ID is invalid or not reachable." -ForegroundColor Red
                         }
                     } else {
-                        Write-Host "[!] Please enter a valid GUID format." -ForegroundColor DarkRed
+                        Write-Host "[!] Please enter a valid Tenant ID in GUID format." -ForegroundColor DarkRed
                     }
                 }
             }
         }
 
-
         function Choose-IdentityType {
             while ($true) {
-                Write-Host "`n[*] Choose Identity Type:" -ForegroundColor DarkCyan
-                Write-Host "1) User Account" -ForegroundColor DarkYellow
-                Write-Host "2) Service Principal" -ForegroundColor DarkYellow
-                $choice = Read-Host "Enter choice (1/2)"
+                Write-Host "`n===================== Identity Type Selection =====================" -ForegroundColor DarkCyan
+                Write-Host ("{0,-5} {1,-25}" -f "ID", "Description") -ForegroundColor White
+                Write-Host ("{0,-5} {1,-25}" -f "--", "-----------") -ForegroundColor White
+
+                Write-Host ("{0,-5} {1,-25}" -f "1)", "User Account (UPN Login)") -ForegroundColor DarkYellow
+                Write-Host ("{0,-5} {1,-25}" -f "2)", "Service Principal (ClientID)") -ForegroundColor DarkYellow
+
+                Write-Host "`n[*] Please choose an identity type (1 or 2):" -ForegroundColor Cyan
+                $choice = Read-Host "Input"
+
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice." -ForegroundColor DarkRed
+                    Write-Host "[!] Invalid selection. Please enter 1 or 2." -ForegroundColor Red
                 }
             }
         }
+
 
 
         function Choose-UserAuthFlow {
             while ($true) {
-                Write-Host "`n[*] Choose Authentication Method:" -ForegroundColor DarkCyan
-                Write-Host "1) Refresh Token" -ForegroundColor DarkYellow
-                Write-Host "2) Device Code Flow" -ForegroundColor DarkYellow
-                $choice = Read-Host "Enter choice (1/2)"
+                Write-Host "`n================== User Authentication Method ==================" -ForegroundColor DarkCyan
+                Write-Host ("{0,-5} {1,-25}" -f "ID", "Description") -ForegroundColor White
+                Write-Host ("{0,-5} {1,-25}" -f "--", "-----------") -ForegroundColor White
+
+                Write-Host ("{0,-5} {1,-25}" -f "1)", "Refresh Token (pre-obtained)") -ForegroundColor DarkYellow
+                Write-Host ("{0,-5} {1,-25}" -f "2)", "Device Code Flow (interactive)") -ForegroundColor DarkYellow
+
+                Write-Host "`n[*] Please select authentication method (1 or 2):" -ForegroundColor Cyan
+                $choice = Read-Host "Input"
+
                 if ($choice -eq "1" -or $choice -eq "2") {
                     return $choice
                 } else {
-                    Write-Host "[!] Invalid choice." -ForegroundColor DarkRed
+                    Write-Host "[!] Invalid selection. Please enter 1 or 2." -ForegroundColor Red
                 }
             }
         }
+
 
         function Decode-AccessToken {
             param ([string]$AccessToken)
@@ -1430,8 +1468,6 @@ function Banner {
         )
         $Global:Identities = @()
 
-
-
         function Initialize-Session {
             $TenantMethod = Get-TenantInputMethod
             $TenantInfo = Get-TenantIdentity -Method $TenantMethod
@@ -1443,7 +1479,7 @@ function Banner {
                 $authMethod = Choose-UserAuthFlow
 
                 if ($authMethod -eq "1") {
-                    Write-Host "Enter your Refresh Token" 
+                    Write-Host "Enter your Refresh Token" -ForegroundColor DarkCyan
                     $RefreshToken = Read-Host "[>]"
                     $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
 		            $headers = @{ 'User-Agent' = $UserAgent }
@@ -1467,7 +1503,7 @@ function Banner {
                             $GraphToken = $refreshResponseGraph.access_token
                             $RefreshToken = $refreshResponseGraph.refresh_token
                             $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                            Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor Green
+                            Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor DarkGreen
                         } catch {
                             Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
                             }
@@ -1475,55 +1511,54 @@ function Banner {
                                 $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                                 $ARMToken = $refreshResponseARM.access_token
                                 $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                                Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
+                                Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor DarkGreen
                             } catch {
                                 Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
                                 }
                             if ($GraphToken -or $ARMToken) {
                                 if ($DecodedGraph) {
-                                    Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                                    Write-Host "[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor DarkCyan
                                     if ($DecodedGraph.upn) {
-                                        Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
+                                        Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor DarkGreen
                                     }
                                     if ($DecodedGraph.scp) {
-                                        Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
+                                        Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor DarkYellow
                                     }
                                     if ($DecodedGraph.roles) {
-                                        Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
+                                        Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor DarkYellow
                                     }
                                     Write-Host ""
                                     $CurrentUPN = $DecodedGraph.upn
+                                    $CurrentEmail = $DecodedGraph.email
                                     $Scopes = $DecodedGraph.scp -split " " 
                                     $Global:Identities += [PSCustomObject]@{
-                                        UPN             = $CurrentUPN 
+                                        UPN             = $CurrentUPN
+                                        Email           = $CurrentEmail
                                         GraphToken      = $GraphToken
                                         ARMToken        = $ARMToken
                                         Scopes          = $Scopes
                                         RefreshToken    = $RefreshToken 
                                     }                      
                                 }  
-
                                 if ($DecodedARM) {
-                                    Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
-
+                                    Write-Host "`n[+] Identity Info Extracted from Access Token (ARM):" -ForegroundColor DarkCyan
                                     if ($DecodedARM.upn) {
-                                        Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
+                                        Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor DarkGreen
                                     } 
                                     if ($DecodedARM.scp) {
-                                        Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                                        Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor DarkYellow
                                     }
                                     if ($DecodedARM.roles) {
-                                        Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                                        Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor DarkYellow
                                     }
                                     Write-Host ""
                                 }
                             return $true
                             }   
                     }  catch {
-                            Write-Host "`n[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
+                            Write-Host "[-] Failed to retrieve Access Token using Refresh Token." -ForegroundColor DarkRed
                         return $null
                     }
-                    
                 
                 } elseif ($authMethod -eq "2") {
                     $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
@@ -1574,7 +1609,7 @@ function Banner {
                                     $GraphToken = $refreshResponseGraph.access_token
                                     $RefreshToken = $refreshResponseGraph.refresh_token
                                     $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
-                                    Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor Green
+                                    Write-Host "[+] Successfully received Graph Access Token" -ForegroundColor DarkGreen
                                 } catch {
                                     Write-Host "[-] Failed to get Graph Access Token" -ForegroundColor DarkRed
                                 }
@@ -1583,48 +1618,49 @@ function Banner {
                                     $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $refreshBodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                                     $ARMToken = $refreshResponseARM.access_token
                                     $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                                    Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
+                                    Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor DarkGreen
                                 } catch {
                                     Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
                                 }
                             if ($GraphToken -or $ARMToken) {
                             if ($DecodedGraph) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                                Write-Host "`n[+] Identity Info Extracted from Access Token (ARM):" -ForegroundColor DarkCyan
 
                                 if ($DecodedGraph.upn) {
-                                    Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor Green
+                                    Write-Host "  UPN:        $($DecodedGraph.upn)" -ForegroundColor DarkGreen
                                 } 
                                 if ($DecodedGraph.scp) {
-                                    Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor Green
+                                    Write-Host "  Scopes:        $($DecodedGraph.scp)" -ForegroundColor DarkYellow
                                 }
                                 if ($DecodedGraph.roles) {
-                                    Write-Host "  oles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
+                                    Write-Host "  oles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor DarkYellow
                                 }
                                 Write-Host ""
                                 
                                 $CurrentUPN = $DecodedGraph.upn
+                                $CurrentEmail = $DecodedGraph.email
                                 $Scopes = $DecodedGraph.scp -split " " 
                                 $Global:Identities += [PSCustomObject]@{
-                                    UPN             = $CurrentUPN 
+                                    UPN             = $CurrentUPN
+                                    Email           = $CurrentEmail
                                     GraphToken      = $GraphToken
                                     ARMToken        = $ARMToken
                                     Scopes          = $Scopes 
                                     RefreshToken    = $RefreshToken
-                                    type            = "User"
                                 }                      
 
                             }
                             if ($DecodedARM) {
-                                Write-Host "`n[+] Identity Info Extracted from Access Token (ARM):" -ForegroundColor Cyan
+                                Write-Host "`n[+] Identity Info Extracted from Access Token (ARM):" -ForegroundColor DarkCyan
 
                                 if ($DecodedARM.upn) {
-                                    Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor Green
+                                    Write-Host "  UPN:        $($DecodedARM.upn)" -ForegroundColor DarkGreen
                                 }  
                                 if ($DecodedARM.scp) {
-                                    Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                                    Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor DarkYellow
                                 }
                                 if ($DecodedARM.roles) {
-                                    Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                                    Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor DarkYellow
                                 }
                                 Write-Host ""
                             }
@@ -1652,10 +1688,10 @@ function Banner {
                 }
             }
             elseif ($identityType -eq "2") {
-                Write-Host "Enter your Client ID" -ForegroundColor Cyan
-                $ClientID = Read-Host "[>]"
-                Write-Host "Enter your Client Secret" -ForegroundColor Cyan
-                $ClientSecret = Read-Host "[>]"
+                Write-Host "  Enter your Client ID" -ForegroundColor DarkCyan
+                $ClientID = Read-Host "  [>]"
+                Write-Host "  Enter your Client Secret" -ForegroundColor DarkCyan
+                $ClientSecret = Read-Host "  [>]"
 
                 $Url = "https://login.microsoftonline.com/$Global:TenantID/oauth2/v2.0/token"
                 $UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
@@ -1686,7 +1722,7 @@ function Banner {
                         $refreshResponseARM = Invoke-RestMethod -Method POST -Uri $url -Body $bodyARM -Headers $headers -ContentType "application/x-www-form-urlencoded"
                         $ARMToken = $refreshResponseARM.access_token
                         $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
-                        Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor Green
+                        Write-Host "[+] Successfully received ARM Access Token" -ForegroundColor DarkGreen
                     } catch {
                         Write-Host "[-] Failed to get ARM Access Token" -ForegroundColor DarkRed
                     }
@@ -1695,24 +1731,24 @@ function Banner {
                     $DecodedGraph = Decode-AccessToken -AccessToken $GraphToken
                     $DecodedARM = Decode-AccessToken -AccessToken $ARMToken
                     if ($DecodedGraph) {
-                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor DarkCyan
                         if ($DecodedGraph.app_displayname) {
-                            Write-Host "  App-Name:        $($DecodedGraph.app_displayname)" -ForegroundColor Green
+                            Write-Host "  App-Name:        $($DecodedGraph.app_displayname)" -ForegroundColor DarkGreen
                         } 
                         if ($DecodedGraph.scp) {
                             Write-Host "  Scopes:    " -NoNewline
                             $ScopesList = $DecodedGraph.scp -split " "
                             foreach ($scope in $ScopesList) {
                                 if ($sensitiveScopes -contains $scope) {
-                                    Write-Host "$scope " -ForegroundColor Red -NoNewline
+                                    Write-Host "$scope " -ForegroundColor DarkRed -NoNewline
                                 } else {
-                                    Write-Host "$scope " -ForegroundColor Yellow -NoNewline
+                                    Write-Host "$scope " -ForegroundColor DarkYellow -NoNewline
                                 }
                             }
                             Write-Host ""
                         }
                         if ($DecodedGraph.roles) {
-                            Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor Yellow
+                            Write-Host "  Roles:      $($DecodedGraph.roles -join ', ')" -ForegroundColor DarkYellow
                         }
                         Write-Host ""
 
@@ -1725,21 +1761,20 @@ function Banner {
                             Scopes          = $Scopes
                             ClientID        = $ClientID
                             ClientSecret    = $ClientSecret
-                            type            = "SPN" 
                         }         
                     }
 
                     if ($DecodedARM) {
-                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor Cyan
+                        Write-Host "`n[+] Identity Info Extracted from Access Token (Graph):" -ForegroundColor DarkCyan
 
                         if ($DecodedARM.app_displayname) {
-                            Write-Host "  App-Name:        $($DecodedARM.app_displayname)" -ForegroundColor Green
+                            Write-Host "  App-Name:        $($DecodedARM.app_displayname)" -ForegroundColor |DarkGreen
                         } 
                         if ($DecodedARM.scp) {
-                            Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor Yellow
+                            Write-Host "  Scopes:     $($DecodedARM.scp)" -ForegroundColor DarkYellow
                         }
                         if ($DecodedARM.roles) {
-                            Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor Yellow
+                            Write-Host "  Roles:      $($DecodedARM.roles -join ', ')" -ForegroundColor DarkYellow
                         }
                         Write-Host ""
                     }
@@ -1754,19 +1789,19 @@ function Banner {
 
 
     function Show-IdentitiesMenu {
-        Write-Host "`n================== Authenticated Identities ==================" -ForegroundColor Green
-        Write-Host ("{0,-5} {1,-35} {2,-10} {3,-10}" -f "ID", "User Principal Name", "Graph", "ARM") -ForegroundColor White
-        Write-Host ("{0,-5} {1,-35} {2,-10} {3,-10}" -f "--", "-------------------", "-----", "---") -ForegroundColor White
+        Write-Host "`n================== Authenticated Identities ==================" -ForegroundColor DarkGreen
+        Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10}" -f "ID", "User Principal Name","Email", "Graph", "ARM") -ForegroundColor White
+        Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10}" -f "--", "-------------------", "-------------------", "-----", "---") -ForegroundColor White
 
         for ($i = 0; $i -lt $Global:Identities.Count; $i++) {
             $user = $Global:Identities[$i]
             $graphStatus = if ($user.GraphToken) { "V" } else { "X" }
             $armStatus = if ($user.ARMToken) { "V" } else { "X" }
 
-            Write-Host ("{0,-5} {1,-35} {2,-10} {3,-10}" -f "$($i+1))", $user.UPN, $graphStatus, $armStatus) -ForegroundColor DarkYellow
+            Write-Host ("{0,-5} {1,-35} {2,-35} {3,-10} {4,-10}" -f "$($i+1))", $user.upn, $user.email, $graphStatus, $armStatus) -ForegroundColor DarkYellow
         }
 
-        Write-Host "`n[*] Total identities: $($Global:Identities.Count)" -ForegroundColor Cyan
+        Write-Host "`n[*] Total identities: $($Global:Identities.Count)" -ForegroundColor DarkCyan
 
         $choice = Read-Host "`n[>] Select identity by ID"
         if ($choice -match '^\d+$' -and $choice -gt 0 -and $choice -le $Global:Identities.Count) {
@@ -1777,10 +1812,10 @@ function Banner {
             $Global:ClientID         = $SelectedIdentity.ClientID
             $Global:ClientSecret     = $SelectedIdentity.ClientSecret
                     
-            Write-Host "`n[+] Loaded identity: $($SelectedIdentity.UPN)" -ForegroundColor Green
+            Write-Host "`n[+] Loaded identity: $($SelectedIdentity.email)" -ForegroundColor DarkGreen
             Show-MainMenu
         } else {
-            Write-Host "[!] Invalid selection. Please try again." -ForegroundColor Red
+            Write-Host "[!] Invalid selection. Please try again." -ForegroundColor DarkRed
             Show-IdentitiesMenu
         }
     }
