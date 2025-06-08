@@ -3497,7 +3497,8 @@ function Invoke-ValidUPN {
                  "FirstLast", "LastFirst", "FirstInitialLast", "LastInitialFirst", 
                  "InitialFirstLast", "InitialLastFirst", "FirstTwoLast", "LastTwoFirst", 
                  "FirstThreeLast", "LastThreeFirst")]
-        [string]$Style 
+        [string]$Style,
+	[string]$Delay
     )
 
 
