@@ -242,6 +242,31 @@ function Invoke-ResourcePermissions {
     $Subscriptions = @()
 
 	do {
+		if ([Console]::KeyAvailable) {
+			$key = [Console]::ReadKey($true)
+			if ($key.Key -eq "Enter") {
+				Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+				Write-Host "[1] Back To Menu"
+				Write-Host "[2] Continue"
+				$whatdoyou = Read-Host "Enter your choice"
+				
+				switch ($whatdoyou) {
+					"1" {
+						$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+						Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+						$Subscriptions = @()
+						Show-MainMenu
+						break
+					}
+					"2" {
+						Write-Host "[+] Continue script..." -ForegroundColor Green
+					}
+					default {
+						Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+					}
+				}
+			}
+		}
 		try {
 			$response = Invoke-RestMethod -Uri $SubUrl -Headers $Headers
 			$Subscriptions += $response.value
@@ -260,6 +285,31 @@ function Invoke-ResourcePermissions {
         Write-Host "`n[*] Checking subscription: $subName ($subId)" -ForegroundColor DarkCyan
 
         for ($x = 0; $x -lt $Subscriptions.Count; $x++) {
+			if ([Console]::KeyAvailable) {
+				$key = [Console]::ReadKey($true)
+				if ($key.Key -eq "Enter") {
+					Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+					Write-Host "[1] Back To Menu"
+					Write-Host "[2] Continue"
+					$whatdoyou = Read-Host "Enter your choice"
+					
+					switch ($whatdoyou) {
+						"1" {
+							$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+							Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+							$Subscriptions = @()
+							Show-MainMenu
+							break
+						}
+						"2" {
+							Write-Host "[+] Continue script..." -ForegroundColor Green
+						}
+						default {
+							Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+						}
+					}
+				}
+			}
             $subId = $Subscriptions[$x].subscriptionId
             Write-Host "   [*] Enumerating Permission on this subscription: $subId" -ForegroundColor Cyan
 
@@ -293,6 +343,31 @@ function Invoke-ResourcePermissions {
 				$Response = Invoke-RestMethod -Uri $ResourcesUrl -Headers $Headers
 				$Resources += $Response.value
 				$ResourcesUrl = $Response.nextLink
+				if ([Console]::KeyAvailable) {
+					$key = [Console]::ReadKey($true)
+					if ($key.Key -eq "Enter") {
+						Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						Write-Host "[1] Back To Menu"
+						Write-Host "[2] Continue"
+						$whatdoyou = Read-Host "Enter your choice"
+						
+						switch ($whatdoyou) {
+							"1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								$Resources = @()
+								Show-MainMenu
+								break
+							}
+							"2" {
+								Write-Host "[+] Continue script..." -ForegroundColor Green
+							}
+							default {
+								Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							}
+						}
+					}
+				}
 			} while ($ResourcesUrl)
 		}
 		catch {
@@ -455,6 +530,41 @@ function Invoke-ResourcePermissions {
 						$PermissionFlags.CertificatesRead = $true
 					}
 				}
+				
+				if ([Console]::KeyAvailable) {
+					 $key = [Console]::ReadKey($true)
+					 if ($key.Key -eq "Enter") {
+						 Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						 Write-Host "[1] Back To Menu"
+						 Write-Host "[2] Continue"
+						 $whatdoyou = Read-Host "Enter your choice"
+
+						 switch ($whatdoyou) {
+							 "1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								Show-MainMenu
+								$PermissionFlags = @{
+									MicrosoftKeyVaultWildcard = $false
+									VaultWildcard = $false
+									VaultsRead = $false
+									VaultsWrite = $false
+									SecretsRead = $false
+									KeysRead = $false
+									CertificatesRead = $false
+									BadOption = $false
+								}
+								break
+							 }
+							 "2" {
+								 Write-Host "[+] Continue script..." -ForegroundColor Green
+							 }
+							 default {
+								 Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							 }
+						 }
+					 }
+				 }
 					
 				if ($PermissionFlags.BadOption) {
 					Write-Host "[!] Bad NotActions detected, skipping Vault enumeration." -ForegroundColor Red
@@ -601,7 +711,34 @@ function Invoke-ResourcePermissions {
 						$FoundBad = $true
 					}
 				}
+				
+				if ([Console]::KeyAvailable) {
+					 $key = [Console]::ReadKey($true)
+					 if ($key.Key -eq "Enter") {
+						 Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						 Write-Host "[1] Back To Menu"
+						 Write-Host "[2] Continue"
+						 $whatdoyou = Read-Host "Enter your choice"
 
+						 switch ($whatdoyou) {
+							 "1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								Show-MainMenu
+								$FoundInteresting = $false
+								$FoundConflict = $false
+								$FoundBad = $false
+								break
+							 }
+							 "2" {
+								 Write-Host "[+] Continue script..." -ForegroundColor Green
+							 }
+							 default {
+								 Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							 }
+						 }
+					 }
+				 }
 				if ($FoundConflict) {
 					Write-Host "     [CONFLICT] Some permissions are both allowed and denied!" -ForegroundColor DarkRed
 					Write-Host ""
@@ -690,6 +827,35 @@ function Invoke-ResourcePermissions {
                     }
 				}
                 
+				if ([Console]::KeyAvailable) {
+					 $key = [Console]::ReadKey($true)
+					 if ($key.Key -eq "Enter") {
+						 Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						 Write-Host "[1] Back To Menu"
+						 Write-Host "[2] Continue"
+						 $whatdoyou = Read-Host "Enter your choice"
+
+						 switch ($whatdoyou) {
+							 "1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								Show-MainMenu
+								$FoundGREAT = $false
+								$FoundConflict = $false
+								$FoundWOW = $false
+								$FoundBAD = $false
+								break
+							 }
+							 "2" {
+								 Write-Host "[+] Continue script..." -ForegroundColor Green
+							 }
+							 default {
+								 Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							 }
+						 }
+					 }
+				 }
+				
 				if ($FoundGREAT) {
 					Write-Host "      [GREAT] Found interesting permissions!" -ForegroundColor DarkGreen
 					Write-Host " "
@@ -1100,6 +1266,7 @@ function Invoke-MembershipChange {
 
             do {
                 try {
+					
                     if ($Action -eq "add") {
                         $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/`$ref"
                         $Body = @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$MemberId" } | ConvertTo-Json
@@ -1108,13 +1275,64 @@ function Invoke-MembershipChange {
                         
                         Add-Content -Path $SuccessLogFile -Value $GroupId
                         $Success = $true
+						if ([Console]::KeyAvailable) {
+							$key = [Console]::ReadKey($true)
+							if ($key.Key -eq "Enter") {
+								Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+								Write-Host "[1] Back To Menu"
+								Write-Host "[2] Continue"
+								$whatdoyou = Read-Host "Enter your choice"
+
+								switch ($whatdoyou) {
+									"1" {
+										$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+										Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+										Show-MainMenu
+										$Success = $false
+										break
+									}
+									"2" {
+										Write-Host "[+] Continue script..." -ForegroundColor Green
+									}
+									default {
+										Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+									}
+								}
+							}
+						}
                     } elseif ($Action -eq "delete") {
                         $Url = "https://graph.microsoft.com/v1.0/groups/$GroupId/members/$MemberId/`$ref"
                         Invoke-RestMethod -Method DELETE -Uri $Url -Headers $Headers
                         Write-Host "[+] Removed $MemberId from $GroupId" -ForegroundColor Green
                         Add-Content -Path $SuccessRenoveLogFile -Value $GroupId
                         $Success = $true
+						if ([Console]::KeyAvailable) {
+							$key = [Console]::ReadKey($true)
+							if ($key.Key -eq "Enter") {
+								Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+								Write-Host "[1] Back To Menu"
+								Write-Host "[2] Continue"
+								$whatdoyou = Read-Host "Enter your choice"
+
+								switch ($whatdoyou) {
+									"1" {
+										$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+										Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+										Show-MainMenu
+										$Success = $false
+										break
+									}
+									"2" {
+										Write-Host "[+] Continue script..." -ForegroundColor Green
+									}
+									default {
+										Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+									}
+								}
+							}
+						}
                     }
+
                 } catch {
                     $Response = $_.Exception.Response
                     $StatusCode = 0
@@ -1248,10 +1466,35 @@ function Invoke-FindGroup {
         )
 
         $attempt = 0
-        while ($true) {
-    
+        while ($true) {			
+			if ([Console]::KeyAvailable) {
+				$key = [Console]::ReadKey($true)
+				if ($key.Key -eq "Enter") {
+					Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+					Write-Host "[1] Back To Menu"
+					Write-Host "[2] Continue"
+					$whatdoyou = Read-Host "Enter your choice"
+
+					switch ($whatdoyou) {
+						"1" {
+							$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+							Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+							Show-MainMenu
+							$attempt = 0
+							break
+						}
+						"2" {
+							Write-Host "[+] Continue script..." -ForegroundColor Green
+						}
+						default {
+							Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+						}
+					}
+				}
+			} 
             try {
                 return Invoke-RestMethod -Method $Method -Uri $Uri -Headers $Headers -ErrorAction Stop
+				
             }
             catch {
                 if ($_.Exception.Response.StatusCode.value__ -eq 429) {
@@ -1476,7 +1719,30 @@ function Invoke-FindUserByWord {
     Write-Host ""
 
     while ($UsersUrl) {
-        
+        if ([Console]::KeyAvailable) {
+			$key = [Console]::ReadKey($true)
+			if ($key.Key -eq "Enter") {
+				Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+				Write-Host "[1] Back To Menu"
+				Write-Host "[2] Continue"
+				$whatdoyou = Read-Host "Enter your choice"
+
+				switch ($whatdoyou) {
+					"1" {
+						$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+						Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+						Show-MainMenu
+						break
+					}
+					"2" {
+						Write-Host "[+] Continue script..." -ForegroundColor Green
+					}
+					default {
+						Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+					}
+				}
+			}
+		} 
         if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
             Write-Host "[...] Refreshing Access Token" -ForegroundColor DarkYellow
             if ($authMethod -eq "client") {
@@ -1631,6 +1897,31 @@ function Invoke-FindUserRole {
     $uri = "https://graph.microsoft.com/v1.0/users"
 
     while ($uri) {
+			if ([Console]::KeyAvailable) {
+				$key = [Console]::ReadKey($true)
+				if ($key.Key -eq "Enter") {
+					Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+					Write-Host "[1] Back To Menu"
+					Write-Host "[2] Continue"
+					$whatdoyou = Read-Host "Enter your choice"
+	
+					switch ($whatdoyou) {
+						"1" {
+							$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+							Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+							Show-MainMenu
+							$allUsers = @()
+							break
+						}
+						"2" {
+							Write-Host "[+] Continue script..." -ForegroundColor Green
+						}
+						default {
+							Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+						}
+					}
+				}
+			}
         try {
             $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
             $allUsers += $response.value
@@ -1820,6 +2111,31 @@ function Invoke-FindServicePrincipal {
      Write-Host "[*] Satring to enumerate all Service Principal in $TenantName Tenant" -ForegroundColor Cyan
 
     do {
+		if ([Console]::KeyAvailable) {
+			$key = [Console]::ReadKey($true)
+			if ($key.Key -eq "Enter") {
+				Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+				Write-Host "[1] Back To Menu"
+				Write-Host "[2] Continue"
+				$whatdoyou = Read-Host "Enter your choice"
+				
+				switch ($whatdoyou) {
+					"1" {
+						$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+						Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+						$allServicePrincipalIds = @()
+						Show-MainMenu
+						break
+					}
+					"2" {
+						Write-Host "[+] Continue script..." -ForegroundColor Green
+					}
+					default {
+						Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+					}
+				}
+			}
+		}
         try {
             $response = Invoke-RestMethod -Method GET -Uri $uri -Headers $headers -ErrorAction Stop
             $allServicePrincipalIds += $response.value | ForEach-Object { $_.id }
@@ -1840,7 +2156,31 @@ function Invoke-FindServicePrincipal {
         Write-Host "[+] Retrieved $($allServicePrincipalIds.Count) Service Principal IDs." -ForegroundColor DarkGreen
         $output = @()
         foreach ($id in $allServicePrincipalIds) {
-
+			if ([Console]::KeyAvailable) {
+				$key = [Console]::ReadKey($true)
+				if ($key.Key -eq "Enter") {
+					Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+					Write-Host "[1] Back To Menu"
+					Write-Host "[2] Continue"
+					$whatdoyou = Read-Host "Enter your choice"
+					
+					switch ($whatdoyou) {
+						"1" {
+							$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+							Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+							$allServicePrincipalIds = @()
+							Show-MainMenu
+							break
+						}
+						"2" {
+							Write-Host "[+] Continue script..." -ForegroundColor Green
+						}
+						default {
+							Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+						}
+					}
+				}
+			}
         if ((Get-Date) -gt $StartTime.AddMinutes(7)) {
             Write-Host "[...] Refreshing Access Token" -ForegroundColor YDarkellow
                 if ($authMethod -eq "client") {
@@ -1865,6 +2205,33 @@ function Invoke-FindServicePrincipal {
         $grants = $null
 
         while ($true) {
+		if ([Console]::KeyAvailable) {
+			$key = [Console]::ReadKey($true)
+			if ($key.Key -eq "Enter") {
+				Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+				Write-Host "[1] Back To Menu"
+				Write-Host "[2] Continue"
+				$whatdoyou = Read-Host "Enter your choice"
+				
+				switch ($whatdoyou) {
+					"1" {
+						$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+						Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+						$allServicePrincipalIds = @()
+						$response = $null
+						$grants = $null
+						Show-MainMenu
+						break
+					}
+					"2" {
+						Write-Host "[+] Continue script..." -ForegroundColor Green
+					}
+					default {
+						Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+					}
+				}
+			}
+		}
             try {
                 $response = Invoke-RestMethod -Uri $spUri -Headers $headers -Method GET -ErrorAction Stop
                 $grants = Invoke-RestMethod -Uri $grantsUri -Headers $headers -Method GET -ErrorAction SilentlyContinue
@@ -2003,6 +2370,32 @@ function Invoke-FindPublicGroups {
         $success = $false
         $response = $null
             do {
+				if ([Console]::KeyAvailable) {
+					$key = [Console]::ReadKey($true)
+					if ($key.Key -eq "Enter") {
+						Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						Write-Host "[1] Back To Menu"
+						Write-Host "[2] Continue"
+						$whatdoyou = Read-Host "Enter your choice"
+				
+						switch ($whatdoyou) {
+							"1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								$success = $false
+								$response = $null
+								Show-MainMenu
+								break
+							}
+							"2" {
+								Write-Host "[+] Continue script..." -ForegroundColor Green
+							}
+							default {
+								Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							}
+						}
+					}
+				}
                 try {
                     $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
                     $success = $true
@@ -2049,6 +2442,32 @@ function Invoke-FindPublicGroups {
             $success = $false
             $response = $null
             do {
+				if ([Console]::KeyAvailable) {
+					$key = [Console]::ReadKey($true)
+					if ($key.Key -eq "Enter") {
+						Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						Write-Host "[1] Back To Menu"
+						Write-Host "[2] Continue"
+						$whatdoyou = Read-Host "Enter your choice"
+				
+						switch ($whatdoyou) {
+							"1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								$success = $false
+								$response = $null
+								Show-MainMenu
+								break
+							}
+							"2" {
+								Write-Host "[+] Continue script..." -ForegroundColor Green
+							}
+							default {
+								Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							}
+						}
+					}
+				}
                 try {
                     $response = Invoke-RestMethod -Uri $Url -Headers $headers -ErrorAction Stop
                     $success = $true
@@ -2166,6 +2585,31 @@ function Invoke-FindPublicGroups {
                     Write-Host "[>>] Fetching directory role assignments" -ForegroundColor DarkYellow
                     $GroupIdToRoleMap = Get-GroupsWithDirectoryRoles -AccessToken $GraphAccessToken
                     $success1 = $true
+					if ([Console]::KeyAvailable) {
+					$key = [Console]::ReadKey($true)
+					if ($key.Key -eq "Enter") {
+						Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						Write-Host "[1] Back To Menu"
+						Write-Host "[2] Continue"
+						$whatdoyou = Read-Host "Enter your choice"
+		
+						switch ($whatdoyou) {
+							"1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								$success1 = $false
+								Show-MainMenu
+								break
+							}
+							"2" {
+								Write-Host "[+] Continue script..." -ForegroundColor Green
+							}
+							default {
+								Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							}
+						}
+					}
+				}
                 } catch {
                     $statusCode = $_.Exception.Response.StatusCode.value__
                     if ($statusCode -eq 429) {
@@ -2195,6 +2639,31 @@ function Invoke-FindPublicGroups {
                     try {
                         $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
                         $success = $true
+						if ([Console]::KeyAvailable) {
+						$key = [Console]::ReadKey($true)
+						if ($key.Key -eq "Enter") {
+							Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+							Write-Host "[1] Back To Menu"
+							Write-Host "[2] Continue"
+							$whatdoyou = Read-Host "Enter your choice"
+			
+							switch ($whatdoyou) {
+								"1" {
+									$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+									Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+									$success1 = $false
+									Show-MainMenu
+									break
+								}
+								"2" {
+									Write-Host "[+] Continue script..." -ForegroundColor Green
+								}
+								default {
+									Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+								}
+							}
+						}
+					}
                     } catch {
                         $statusCode = $_.Exception.Response.StatusCode.value__
                         if ($statusCode -eq 429) {
@@ -2225,6 +2694,32 @@ function Invoke-FindPublicGroups {
 
 
         foreach ($group in $groupsBatch) {
+			
+			if ([Console]::KeyAvailable) {
+				$key = [Console]::ReadKey($true)
+				if ($key.Key -eq "Enter") {
+					Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+					Write-Host "[1] Back To Menu"
+					Write-Host "[2] Continue"
+					$whatdoyou = Read-Host "Enter your choice"
+		
+					switch ($whatdoyou) {
+						"1" {
+							$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+							Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+							$success1 = $false
+							Show-MainMenu
+							break
+						}
+						"2" {
+							Write-Host "[+] Continue script..." -ForegroundColor Green
+						}
+						default {
+							Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+						}
+					}
+				}
+			}
             $groupId = $group.id
             $groupName = $group.displayName
             $visibility = $group.visibility
@@ -2359,6 +2854,31 @@ function Invoke-FindDynamicGroups {
 
     do {
         $success = $false
+		if ([Console]::KeyAvailable) {
+			$key = [Console]::ReadKey($true)
+			if ($key.Key -eq "Enter") {
+				Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+				Write-Host "[1] Back To Menu"
+				Write-Host "[2] Continue"
+				$whatdoyou = Read-Host "Enter your choice"
+		
+				switch ($whatdoyou) {
+					"1" {
+						$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+						Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+						$success = $false
+						Show-MainMenu
+						break
+					}
+					"2" {
+						Write-Host "[+] Continue script..." -ForegroundColor Green
+					}
+					default {
+						Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+					}
+				}
+			}
+		}
         do {
             try {
                 $response = Invoke-RestMethod -Uri $groupApiUrl -Headers $headers -Method Get -ErrorAction Stop
@@ -2392,6 +2912,31 @@ function Invoke-FindDynamicGroups {
         $scannedInBatch = 0
 
 			foreach ($group in $groupsBatch) {
+				if ([Console]::KeyAvailable) {
+					$key = [Console]::ReadKey($true)
+					if ($key.Key -eq "Enter") {
+						Write-Host "`n[!]The operation is delayed" -ForegroundColor Yellow
+						Write-Host "[1] Back To Menu"
+						Write-Host "[2] Continue"
+						$whatdoyou = Read-Host "Enter your choice"
+				
+						switch ($whatdoyou) {
+							"1" {
+								$a = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+								Write-Host "[>>] Exiting script, Timestamp: $a" -ForegroundColor DarkCyan
+								$success = $false
+								Show-MainMenu
+								break
+							}
+							"2" {
+								Write-Host "[+] Continue script..." -ForegroundColor Green
+							}
+							default {
+								Write-Host "[!] Invalid choice. Resuming by default." -ForegroundColor Yellow
+							}
+						}
+					}
+				}
 				$groupId = $group.id
 				$groupName = $group.displayName
 				$membershipRule = $group.membershipRule
@@ -3034,11 +3579,11 @@ function Banner {
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "8)", "Invoke-ResourcePermissions", "Enumerate your effective role assignments on Azure resources, including Key Vaults, Storage Accounts, and Virtual Machines.") -ForegroundColor DarkYellow
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "9)", "Invoke-TAPChanger", "Add or remove a Temporary Access Pass (TAP) for a target user in the Entra ID tenant.") -ForegroundColor DarkYellow
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "--", "--------", "-----------") -ForegroundColor White
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "10)", "RefreshToken", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "11)", "Graph Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "12)", "ARM Access Token", "Manually refresh Graph/ARM tokens") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "10)", "RefreshToken", "Show Refresh Token") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "11)", "Graph Access Token", "Show Graph Access Token") -ForegroundColor DarkGreen
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "12)", "ARM Access Token", "Show ARM Access Token") -ForegroundColor DarkGreen
             Write-Host ("{0,-5} {1,-35} {2,-50}" -f "--", "--------", "-----------") -ForegroundColor White
-            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "13)", "Identity Menu", "View/add/remove current identities") -ForegroundColor DarkCyan
+            Write-Host ("{0,-5} {1,-35} {2,-50}" -f "13)", "Identity Menu", "Show all Identities") -ForegroundColor DarkCyan
             $choice = Read-Host "`n[>] Select an option"
             $RefreshToken = $Global:RefreshToken
             $ClientID = $Global:clientID
@@ -3059,6 +3604,8 @@ function Banner {
                 }
 
                 "2" {
+					$choice = $null
+					$useDeep = $null
                     Write-Host "`n[?] Do you want to perform a deep search with conversation scanning? (Y/N)" -ForegroundColor DarkCyan
                     $choice = Read-Host "Select Option"
 
@@ -3084,6 +3631,7 @@ function Banner {
                     else {
                         Write-Host "[!] No valid authentication method provided. Please authenticate first." -ForegroundColor Red
                     }
+					
                 }
 
 
@@ -3106,9 +3654,10 @@ function Banner {
                 } 
 
                 "5" {
+					$word = $null
                     while ($true) {
-                        if (-not $word) {
-                            Write-Host "`n[!] You must provide a word to search for a user." -ForegroundColor Red
+                        if (-not $word -or $word -eq $null) {
+                            Write-Host "`n Please provide a word to search for a user." -ForegroundColor cyan
                             $word = Read-Host "[>] Enter word to search for user"
                         } else {
                             break
@@ -3124,13 +3673,15 @@ function Banner {
                     else {
                         Write-Host "[!] No valid authentication method loaded. Please load identity first." -ForegroundColor Red
                     }
+					
                 }
 
 
                 "6" {
+					$word = $null
                     while ($true) {
-                        if (-not $word) {
-                            Write-Host "`n[!] You must provide a word to search." -ForegroundColor Red
+                        if (-not $word -or $word -eq $null) {
+                            Write-Host "`Please provide a word to search." -ForegroundColor Cyan
                             $word = Read-Host "[>] Enter word to search for group name"
                         } else {
                             break
@@ -3150,10 +3701,15 @@ function Banner {
 
 
                 "7" {
+					$selfChoice = $null
+					$UserID = $null
+					$action = $null
+					$groupType = $null
                     while ($true) {
+							if(-not $selfChoice -or $selfChoice -eq $null){
                         Write-Host "`nDo you want to manage your own membership or someone else's?" -ForegroundColor Cyan
                         $selfChoice = Read-Host "(Y)ourself / (O)ther user"
-
+						}
                         if ($selfChoice -eq "Y") {
                             $UserID = $null 
 
@@ -3202,9 +3758,11 @@ function Banner {
                             break
                         }
                     }
+					
                 }
 
                 "8" {
+					$selfChoice = $null
                     if ($RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
                         Write-Host "`nWhat do you want to enumerate?" -ForegroundColor Cyan
                         Write-Host "   1) KeyVaults" -ForegroundColor Yellow
@@ -3267,10 +3825,10 @@ function Banner {
                             }
                         }
 
-                    }
-                    
+                    } 
                 }
                 "9" {
+					$selfChoice = $null
                     Write-Host "`nDo you want to Add or Delete a Temporary Access Pass (TAP)?" -ForegroundColor Cyan
                     $selfChoice = Read-Host "[>] A(dd) or D(elete)"
 
