@@ -3099,18 +3099,20 @@ function Banner {
 
                 Write-Host ("{0,-5} {1,-25}" -f "1)", "User Account (UPN Login)") -ForegroundColor DarkYellow
                 Write-Host ("{0,-5} {1,-25}" -f "2)", "Service Principal (ClientID)") -ForegroundColor DarkYellow
-
+                Write-Host ("{0,-5} {1,-25}" -f "3)", "Go Back") -ForegroundColor DarkYellow
                 Write-Host "`n[*] Please choose an identity type (1 or 2):" -ForegroundColor Cyan
                 $choice = Read-Host "Input"
 
-                if ($choice -eq "1" -or $choice -eq "2") {
-                    return $choice
-                } else {
-                    Write-Host "[!] Invalid selection. Please enter 1 or 2." -ForegroundColor Red
+                switch ($choice) {
+                    "1" { return $choice }
+                    "2" { return $choice }
+                    "3" { return Get-TenantIdentity }
+                    default {
+                        Write-Host "[!] Invalid selection. Please enter 1, 2 or 3." -ForegroundColor Red
+                    }
                 }
             }
         }
-
 
 
         function Choose-UserAuthFlow {
@@ -3179,6 +3181,7 @@ function Banner {
             $TenantMethod = Get-TenantInputMethod
             $TenantInfo = Get-TenantIdentity -Method $TenantMethod
             $Global:TenantID = $TenantInfo.TenantID
+            $Global:TenantName = $TenantInfo.Input
             $identityType = Choose-IdentityType
 
             if ($identityType -eq "1")  {
@@ -3532,8 +3535,12 @@ function Banner {
         }
         Write-Host ""
         Write-Host "`n[*] Total identities: $($Global:Identities.Count)" -ForegroundColor DarkCyan
+        Write-Host "11) back to add identity" -ForegroundColor DarkGray
         Write-Host ""
         $choice = Read-Host "`n[>] Select identity by ID"
+        if($choice -eq "11"){
+            Get-TenantInputMethod
+        }
         if ($choice -match '^\d+$' -and $choice -gt 0 -and $choice -le $Global:Identities.Count) {
             $SelectedIdentity = $Global:Identities[$choice - 1]  
             $Global:GraphAccessToken = $SelectedIdentity.GraphToken
