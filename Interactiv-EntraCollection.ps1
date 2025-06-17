@@ -279,11 +279,6 @@ function Invoke-ResourcePermissions {
 
 	$Results = @()
 
-    foreach ($sub in $Subscriptions) {
-        $subId = $sub.subscriptionId
-        $subName = $sub.displayName
-        Write-Host "`n[*] Checking subscription: $subName ($subId)" -ForegroundColor DarkCyan
-
         for ($x = 0; $x -lt $Subscriptions.Count; $x++) {
 			if ([Console]::KeyAvailable) {
 				$key = [Console]::ReadKey($true)
@@ -325,7 +320,7 @@ function Invoke-ResourcePermissions {
 
             foreach ($ResourceAccess in $ResourceAccessPermissions.Keys) {
                 if ($SubPermission_NotActions -contains "*" -or $SubPermission_NotActions -contains $ResourceAccess) {
-                    Write-Host "[!] Bad Permissions on subscription $subId " -ForegroundColor DarkRed
+                    Write-Host "     [!] Bad Permissions on subscription $subId " -ForegroundColor DarkRed
                     Write-Host ""
                 }
                 elseif ($SubPermission_Actions -contains $ResourceAccess -or ($SubPermission_Actions -contains "*/write" -and -not ($SubPermission_NotActions -contains $ResourceAccess))) {
@@ -335,6 +330,13 @@ function Invoke-ResourcePermissions {
                 }
             }
         }
+
+
+    foreach ($sub in $Subscriptions) {
+        $subId = $sub.subscriptionId
+        $subName = $sub.displayName
+        Write-Host "`n[*] Checking subscription: $subName ($subId)" -ForegroundColor DarkCyan
+
 
 		$Resources = @()
 		$ResourcesUrl = "https://management.azure.com/subscriptions/$subId/resources?api-version=2021-04-01"
@@ -926,9 +928,9 @@ $htmlHeader = @"
             overflow: hidden;
         }
         table.dataTable td, table.dataTable th {
-            white-space: normal; /* במקום nowrap */
-            word-break: break-word; /* שובר שורות ארוכות */
-            max-width: 400px; /* מגביל את הרוחב */
+            white-space: normal; 
+            word-break: break-word; 
+            max-width: 400px; 
         }
         table.dataTable th {
             background-color: #007bff;
@@ -985,9 +987,9 @@ $htmlHeader = @"
 "@
 
 
-$KeyVaults = $global:Results | Where-Object { $_.ResourceType -match "^KeyVault" }
-$StorageAccounts = $global:Results | Where-Object { $_.ResourceType -eq "StorageAccount" }
-$VirtualMachines = $global:Results | Where-Object { $_.ResourceType -eq "VirtualMachine" }
+$KeyVaults = $Results | Where-Object { $_.ResourceType -match "^KeyVault" }
+$StorageAccounts = $Results | Where-Object { $_.ResourceType -eq "StorageAccount" }
+$VirtualMachines = $Results | Where-Object { $_.ResourceType -eq "VirtualMachine" }
 
 $GroupedKeyVaults = $KeyVaults | Group-Object -Property ResourceName
 
