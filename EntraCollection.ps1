@@ -3552,7 +3552,7 @@ function Invoke-ValidUPN {
 				Write-Host "  Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com" -ForegroundColor DarkCyan
 				Write-Host "  Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch" -ForegroundColor DarkCyan
 				Write-Host "  Invoke-ValidUPN -Username  < usernames.txt | username >  -DomainName ShkudW.com -OutputFilePath report.html" -ForegroundColor DarkCyan
-				Write-Host "  Invoke-ValidUPN -ConvertName < names.txt | 'firstname lastname" > -Style First.Last" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -ConvertName < names.txt | 'firstname lastname' > -Style First.Last" -ForegroundColor DarkCyan
 
 			}
 
