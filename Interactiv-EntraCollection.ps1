@@ -317,15 +317,18 @@ function Invoke-ResourcePermissions {
                 Write-Warning "Failed to retrieve permissions for subscription $subId"
                 continue
             }
+			
+			if ($subscriptionPermission.vaule -eq $null) {
+				Write-Host "   You Dont Have Permission on this subscription " -ForegroundColor DarkRed
+			}
 
             foreach ($ResourceAccess in $ResourceAccessPermissions.Keys) {
                 if ($SubPermission_NotActions -contains "*" -or $SubPermission_NotActions -contains $ResourceAccess) {
-                    Write-Host "     [!] Bad Permissions on subscription $subId " -ForegroundColor DarkRed
+                    Write-Host "     [!] your user have $ResourceAccess Not-Action Permissions on subscription $subId" -ForegroundColor DarkRed
                     Write-Host ""
                 }
                 elseif ($SubPermission_Actions -contains $ResourceAccess -or ($SubPermission_Actions -contains "*/write" -and -not ($SubPermission_NotActions -contains $ResourceAccess))) {
-                    Write-Host "[*] Interesting permission on subscription $subId" -ForegroundColor Yellow
-                    Write-Host "$SubPermission_Actions"
+                    Write-Host "[*] Interesting permission of $ResourceAccess on subscription $subId" -ForegroundColor Yellow
                     Write-Host ""
                 }
             }
