@@ -3536,7 +3536,7 @@ function Invoke-ValidUPN {
         [string]$NamesFile,
         [string]$OutputFilePath,
         [switch]$StopOnFirstMatch,
-        [string]$ConvertNameFile,
+        [string]$ConvertName,
         [ValidateSet("First", "Last", "FirstL", "LastF", "Last.First", "First.Last", 
                  "FirstLast", "LastFirst", "FirstInitialLast", "LastInitialFirst", 
                  "InitialFirstLast", "InitialLastFirst", "FirstTwoLast", "LastTwoFirst", 
@@ -3551,8 +3551,8 @@ function Invoke-ValidUPN {
 				Write-Host "Invoke-ValidUPN" -ForegroundColor DarkYellow
 				Write-Host "  Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com" -ForegroundColor DarkCyan
 				Write-Host "  Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch" -ForegroundColor DarkCyan
-				Write-Host "  Invoke-ValidUPN -Username usernames.txt -DomainName ShkudW.com -OutputFilePath report.html" -ForegroundColor DarkCyan
-				Write-Host "  Invoke-ValidUPN -ConvertNameFile names.txt -Style First.Last" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -Username  < usernames.txt | username >  -DomainName ShkudW.com -OutputFilePath report.html" -ForegroundColor DarkCyan
+				Write-Host "  Invoke-ValidUPN -ConvertName < names.txt | 'firstname lastname" > -Style First.Last" -ForegroundColor DarkCyan
 
 			}
 
@@ -3585,18 +3585,18 @@ function Invoke-ValidUPN {
 		}
 
 
-		if ($ConvertNameFile -and $Style -and -not $DomainName) {
+		if ($ConvertName -and $Style -and -not $DomainName) {
 		    $names = @()
 		
 		    try {
-		        if (Test-Path $ConvertNameFile) {
-		            $names = Get-Content -Path $ConvertNameFile
+		        if (Test-Path $ConvertName) {
+		            $names = Get-Content -Path $ConvertName
 		        } else {
 		            throw "Not a file"
 		        }
 		    } catch {
 		        Write-Host "Ok it is not a file :)"
-		        $names = @($ConvertNameFile)
+		        $names = @($ConvertName)
 		    }
 		
 		    foreach ($name in $names) {
