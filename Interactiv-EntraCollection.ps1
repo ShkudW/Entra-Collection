@@ -104,6 +104,8 @@ function Invoke-ResourcePermissions {
         [string]$ClientId,
         [string]$ClientSecret,
 	    [string]$TenantID,
+		[switch]$clin,
+		[switch]$ref,
         [switch]$KeyVault,
         [switch]$StorageAccount,
         [switch]$VirtualMachine,
@@ -225,11 +227,13 @@ function Invoke-ResourcePermissions {
 
 	if (-not $ARMAccessToken) { return }
 
-    if($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null){
+    if($clin){
+		#Write-Host "client"
         $authMethod = "client"
     }
     
-    if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null){
+    if($ref){
+		#Write-Host "refresh"
         $authMethod = "refresh"
     }
    
@@ -409,35 +413,38 @@ function Invoke-ResourcePermissions {
 					}
 						
 					function Get-AccessToken {
-                        param(
-                            [string]$TenantID,
-                            [string]$RefreshToken
-                        )
-						if( $RefreshToken -ne $null -and $ClientID -eq $null -and $ClientSecret -eq $null) {
-							$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+						param(
+							[string]$authMethod1,
+							[string]$TenantID1
+						)
+						$Header = @{
+							"User-Agent" = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+						}
+						if($authMethod1 -eq "refresh") {
+							$url = "https://login.microsoftonline.com/$TenantID1/oauth2/v2.0/token"
 								$body = @{
 									client_id = "d3590ed6-52b3-4102-aeff-aad2292ab01c"
 									scope = "https://vault.azure.net/.default"
 									grant_type = "refresh_token"
 									refresh_token = $RefreshToken
 								}
-								$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+								$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $Header
 								Write-Host "      [+] Access Token received successfully for Vault API" -ForegroundColor DarkGray
 								return $Tokens.access_token
-							} elseif ($ClientID -ne $null -and $ClientSecret -ne $null -and $RefreshToken -eq $null) {
-								$url = "https://login.microsoftonline.com/$TenantID/oauth2/v2.0/token"
+							} elseif ($authMethod1 -eq "client") {
+								$url = "https://login.microsoftonline.com/$TenantID1/oauth2/v2.0/token"
 								$body = @{
 									client_id = $ClientId
 									client_secret = $ClientSecret
 									scope = "https://vault.azure.net/.default"
 									grant_type = "client_credentials"
 								}
-								$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body
+								$Tokens = Invoke-RestMethod -Method POST -Uri $url -Body $body -Headers $Header
 									Write-Host "      [+] Access Token received successfully for Vault API" -ForegroundColor DarkGray
 									return $Tokens.access_token
 							} else {
 								Write-Error "Must provide either -RefreshToken or -ClientId and -ClientSecret."
-								exit
+								#exit
 							}
                     }
 
@@ -580,11 +587,11 @@ function Invoke-ResourcePermissions {
 				if ($PermissionFlags.SecretsRead -or $PermissionFlags.KeysRead -or $PermissionFlags.CertificatesRead -or $PermissionFlags.MicrosoftKeyVaultWildcard -or $PermissionFlags.VaultWildcard) {
                     Write-Host "     [STAR] Found Star Permission on this Vault Resource" -ForegroundColor DarkGreen
                     Write-Host ""
-					$VaultAccessToken = Get-AccessToken
+					$VaultAccessToken = Get-AccessToken -authMethod1 $authMethod -TenantID1 $TenantID
 					$VaultUrl = "https://$kvName.vault.azure.net"
 
                     if ($PermissionFlags.SecretsRead -or $PermissionFlags.MicrosoftKeyVaultWildcard -or $PermissionFlags.VaultWildcard) {
-                            $VaultAccessToken = Get-AccessToken
+                            $VaultAccessToken = Get-AccessToken -authMethod1 $authMethod -TenantID1 $TenantID
                             $VaultUrl = "https://$kvName.vault.azure.net"
                             $SecretsList = (Get-VaultItems -VaultUrl $VaultUrl -VaultAccessToken $VaultAccessToken -ItemType "secrets")
                             $SecretPairs = @{}
@@ -3787,18 +3794,18 @@ function Banner {
 
                         switch ($selfChoice) {
                             "1" {
-                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -KeyVault 
+                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -KeyVault -ref
                             }
 
                             "2" {
-                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -StorageAccount
+                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -StorageAccount -ref
                             }
                             "3" {
-                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -VirtualMachine
+                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -VirtualMachine -ref
                             }
 
                             "4" {
-                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -All
+                                Invoke-ResourcePermissions -RefreshToken $RefreshToken -ARMAccessToken $ARMAccessToken -TenantID $TenantID -All -ref
                             }
                             "5" {
                                 Show-MainMenu
@@ -3818,16 +3825,16 @@ function Banner {
                         $selfChoice = Read-Host "`n[>] Enter your choice (1-5)"
                         switch ($selfChoice) {
                             "1" {
-                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -KeyVault 
+                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -KeyVault -clin
                             }
                             "2" {
-                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -StorageAccount
+                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -StorageAccount -clin
                             }
                             "3" {
-                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -VirtualMachine
+                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -VirtualMachine -clin
                             }
                             "4" {
-                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -All
+                                Invoke-ResourcePermissions -ClientID $ClientID -ClientSecret $ClientSecret -ARMAccessToken $ARMAccessToken -TenantID $TenantID -All -clin
                             }
                             "5" {
                                 Show-MainMenu
