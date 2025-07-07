@@ -3540,7 +3540,7 @@ function Invoke-ValidUPN {
         [ValidateSet("First", "Last", "FirstL", "LastF", "Last.First", "First.Last", 
                  "FirstLast", "LastFirst", "FirstInitialLast", "LastInitialFirst", 
                  "InitialFirstLast", "InitialLastFirst", "FirstTwoLast", "LastTwoFirst", 
-                 "FirstThreeLast", "LastThreeFirst")]
+                 "FirstThreeLast", "LastThreeFirst","FLast")]
         [string]$Style,
 	[string]$Delay
     )
@@ -3568,6 +3568,7 @@ function Invoke-ValidUPN {
 				"Last" 		      { return ($lastName) }
 				"FirstL"              { return ($firstName + $lastName.Substring(0, 1)).ToLower() }
 				"LastF"               { return ($lastName + $firstName.Substring(0, 1)).ToLower() }
+   				"FLast"               { return ($firstName.Substring(0, 1)).ToLower() + $lastName }
 				"First.Last"          { return ($firstName + "." + $lastName).ToLower() }
 				"Last.First"          { return ($lastName + "." + $firstName).ToLower() }
 				"FirstLast"           { return ($firstName + $lastName).ToLower() }
@@ -3691,6 +3692,7 @@ function Invoke-ValidUPN {
         return @(
             "$FirstName"
             "$LastName"
+	    "$firstName.Substring(0, 1))$lastName"
             "$FirstName$LastName"
             "$FirstName.$LastName"
             "$LastName$FirstName"
