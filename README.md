@@ -196,4 +196,9 @@ Validate whether specified user accounts (UPNs) exist in a target Entra ID tenan
 Invoke-ValidUPN -FirstName Shaked -LastName Wiessman -DomainName ShkudW.com
 Invoke-ValidUPN -NamesFile names.txt -DomainName ShkudW.com -StopOnFirstMatch
 Invoke-ValidUPN -UsernameFile usernames.txt -DomainName ShkudW.com -OutputFilePath report.html
-```  
+```
+
+For setting up usernames dilr with mail extention:
+```powershell
+Get-Content names.txt | ForEach-Object { "$_@mail.com" } | Set-Content usernames.txt
+```
